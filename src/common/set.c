@@ -1625,6 +1625,19 @@ util_header_check(struct pool_set *set, unsigned repidx, unsigned partidx,
 }
 
 /*
+ * util_replica_force_page_allocation - (internal) forces page allocation for
+ * replica
+ */
+static void
+util_replica_force_page_allocation(struct pool_replica *rep)
+{
+	volatile char *cur_addr = rep->part[0].addr;
+	char *addr_end = (char *)cur_addr + rep->part[0].size;
+	for (; cur_addr < addr_end; cur_addr += Pagesize)
+		*cur_addr = *cur_addr;
+}
+
+/*
  * util_header_check_remote -- (internal) validate header of a remote
  *                             pool set file
  */
@@ -1854,6 +1867,9 @@ util_replica_create_local(struct pool_set *set, unsigned repidx, int flags,
 	} while (retry_for_contiguous_addr);
 
 	rep->is_pmem = pmem_is_pmem(rep->part[0].addr, rep->part[0].size);
+
+	if (getenv("PMEM_PREALLOC_SPACE_CREATE"))
+		util_replica_force_page_allocation(rep);
 
 	ASSERTeq(mapsize, rep->repsize);
 
@@ -2252,6 +2268,9 @@ util_replica_open_local(struct pool_set *set, unsigned repidx, int flags)
 	} while (retry_for_contiguous_addr);
 
 	rep->is_pmem = pmem_is_pmem(rep->part[0].addr, rep->part[0].size);
+
+	if (getenv("PMEM_PREALLOC_SPACE_OPEN"))
+		util_replica_force_page_allocation(rep);
 
 	ASSERTeq(mapsize, rep->repsize);
 
