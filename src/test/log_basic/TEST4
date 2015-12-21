@@ -62,6 +62,8 @@ expect_normal_exit valgrind --tool=pmemcheck\
 	--log-file=valgrind$UNITTEST_NUM.log\
 	./log_basic$EXESUFFIX $DIR/testfile1 a n t w r t w v n t w r t w
 
+check_pool $DIR/testfile1
+
 check
 
 pass

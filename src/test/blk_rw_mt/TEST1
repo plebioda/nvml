@@ -52,6 +52,8 @@ truncate -s 1G $DIR/testfile1
 # 100 threads, each doing 100 random I/Os
 expect_normal_exit ./blk_rw_mt$EXESUFFIX 4096 $DIR/testfile1 456 100 100
 
+check_pool $DIR/testfile1
+
 check
 
 pass

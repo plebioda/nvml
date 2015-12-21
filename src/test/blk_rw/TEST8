@@ -51,6 +51,8 @@ expect_normal_exit ./blk_rw$EXESUFFIX 512 $DIR/testset1 c\
 	w:0 w:1 r:1 r:0\
 	w:4161445 r:4161445
 
+check_pool $DIR/testfile2
+
 check
 
 pass

@@ -55,6 +55,8 @@ expect_normal_exit $EX_PATH/printlog -t $DIR/testfile1 >> out$UNITTEST_NUM.log 2
 expect_normal_exit $EX_PATH/addlog $DIR/testfile1 "NVML" >> out$UNITTEST_NUM.log 2>&1
 expect_normal_exit $EX_PATH/printlog -t $DIR/testfile1 >> out$UNITTEST_NUM.log 2>&1
 
+check_pool $DIR/testfile1
+
 check
 
 pass

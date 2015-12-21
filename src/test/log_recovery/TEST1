@@ -52,6 +52,8 @@ touch $DIR/testfile1
 
 expect_normal_exit ./log_recovery$EXESUFFIX $DIR/testfile1 v
 
+check_pool $DIR/testfile1
+
 check
 
 pass

@@ -51,6 +51,8 @@ expect_normal_exit ./blk_nblock$EXESUFFIX\
 	512:$DIR/testset1\
 	512:$DIR/testset2
 
+check_pools $DIR/testset1\
+	$DIR/testset2
 check
 
 pass
