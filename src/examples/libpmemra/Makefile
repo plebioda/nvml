@@ -1,4 +1,5 @@
-# Copyright (c) 2014-2015, Intel Corporation
+#
+# Copyright (c) 2015, Intel Corporation
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -28,34 +29,15 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-# Makefile -- top Makefile for tools
+
+#
+# examples/libpmemra/Makefile -- build the libpmemra examples
 #
 
-TARGETS = pmempool pmemrad
-SCOPEDIRS=$(TARGETS)
-SCOPEFILES=$(foreach dir, $(SCOPEDIRS), $(shell find $(dir) -name *.[ch] ))
+PROGS = write
 
-all    : TARGET = all
-check  : TARGET = check
-test   : TARGET = test
-clean  : TARGET = clean
-clobber: TARGET = clobber
-cstyle : TARGET = cstyle
-install: TARGET = install
-uninstall: TARGET = uninstall
+LIBS = -lpmemra -pthread
 
-all clean clobber cstyle install uninstall check test: $(TARGETS)
+include ../Makefile.inc
 
-$(TARGETS):
-	$(MAKE) -C $@ $(TARGET)
-
-clean:
-	$(RM) TAGS cscope.in.out cscope.out cscope.po.out
-
-clobber: clean
-
-cscope:
-	cscope -q -b $(SCOPEFILES)
-	ctags -e $(SCOPEFILES)
-
-.PHONY: all clean clobber cstyle install uninstall common cscope $(TARGETS)
+write: write.o

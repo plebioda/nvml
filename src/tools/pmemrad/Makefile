@@ -28,34 +28,21 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-# Makefile -- top Makefile for tools
+# Makefile -- top Makefile for pmemra daemon
 #
 
-TARGETS = pmempool pmemrad
-SCOPEDIRS=$(TARGETS)
-SCOPEFILES=$(foreach dir, $(SCOPEDIRS), $(shell find $(dir) -name *.[ch] ))
+TOP = ../../..
+vpath %.c $(TOP)/src/common
+TARGET = pmemrad
 
-all    : TARGET = all
-check  : TARGET = check
-test   : TARGET = test
-clean  : TARGET = clean
-clobber: TARGET = clobber
-cstyle : TARGET = cstyle
-install: TARGET = install
-uninstall: TARGET = uninstall
+OBJS = pmemrad.o pmemrad_opts.o pmemrad_client.o pmemrad_pool_db.o set.o util.o out.o
 
-all clean clobber cstyle install uninstall check test: $(TARGETS)
+CFLAGS += -I $(TOP)/src/libpmemra/
+CFLAGS += -I $(TOP)/src/common
 
-$(TARGETS):
-	$(MAKE) -C $@ $(TARGET)
+LIBS = -lfabric
 
-clean:
-	$(RM) TAGS cscope.in.out cscope.out cscope.po.out
+LIBPMEM=y
+LIBPMEMRA=y
 
-clobber: clean
-
-cscope:
-	cscope -q -b $(SCOPEFILES)
-	ctags -e $(SCOPEFILES)
-
-.PHONY: all clean clobber cstyle install uninstall common cscope $(TARGETS)
+include ../Makefile.inc
