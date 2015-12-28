@@ -27,35 +27,15 @@
 # THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 #
-# Makefile -- top Makefile for tools
+# src/libpmemra/Makefile -- Makefile for libpmemra
 #
 
-TARGETS = pmempool pmemrad
-SCOPEDIRS=$(TARGETS)
-SCOPEFILES=$(foreach dir, $(SCOPEDIRS), $(shell find $(dir) -name *.[ch] ))
+LIBRARY_NAME = pmemra
+LIBRARY_SO_VERSION = 1
+LIBRARY_VERSION = 0.0
+SOURCE = libpmemra.c pmemra.c $(COMMON)/util.c $(COMMON)/out.c
+LIBS = -lfabric
 
-all    : TARGET = all
-check  : TARGET = check
-test   : TARGET = test
-clean  : TARGET = clean
-clobber: TARGET = clobber
-cstyle : TARGET = cstyle
-install: TARGET = install
-uninstall: TARGET = uninstall
-
-all clean clobber cstyle install uninstall check test: $(TARGETS)
-
-$(TARGETS):
-	$(MAKE) -C $@ $(TARGET)
-
-clean:
-	$(RM) TAGS cscope.in.out cscope.out cscope.po.out
-
-clobber: clean
-
-cscope:
-	cscope -q -b $(SCOPEFILES)
-	ctags -e $(SCOPEFILES)
-
-.PHONY: all clean clobber cstyle install uninstall common cscope $(TARGETS)
+include ../Makefile.inc

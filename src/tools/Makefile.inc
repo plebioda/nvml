@@ -136,6 +136,12 @@ ifneq ($(LIBPMEMBLK_PRIV),)
 OBJS += pmemblk_priv.o
 endif
 
+ifeq ($(LIBPMEMRA),y)
+DYNAMIC_LIBS += -lpmemra
+STATIC_DEBUG_LIBS += $(LIBSDIR)/debug/libpmemra.a
+STATIC_NONDEBUG_LIBS += $(LIBSDIR)/nondebug/libpmemra.a
+endif
+
 all: $(TARGET) $(TARGET_STATIC_NONDEBUG) $(TARGET_STATIC_DEBUG)
 
 clean:
