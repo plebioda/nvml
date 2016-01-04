@@ -76,9 +76,7 @@ struct pmemra {
 	struct fi_info *fi;
 	struct fid_fabric *fabric;
 	struct fid_eq *eq;
-	struct fi_eq_attr eq_attr;
 	struct fid_domain *domain;
-	struct fi_cq_attr cq_attr;
 	struct fid_mr *mr;
 	size_t nlanes;
 	struct pmemra_lane *lanes;
@@ -235,7 +233,15 @@ pmemra_fabric_init(PMEMrapool *prp, unsigned short port)
 		goto err_fi_fabric;
 	}
 
-	ret = fi_eq_open(prp->fabric, &prp->eq_attr, &prp->eq, NULL);
+	struct fi_eq_attr eq_attr = {
+		.size = 16,
+		.flags = 0,
+		.wait_obj = FI_WAIT_UNSPEC,
+		.signaling_vector = 0,
+		.wait_set = NULL,
+	};
+
+	ret = fi_eq_open(prp->fabric, &eq_attr, &prp->eq, NULL);
 	if (ret) {
 		ERR("cannot open event queue");
 		goto err_fi_eq_open;
@@ -247,13 +253,15 @@ pmemra_fabric_init(PMEMrapool *prp, unsigned short port)
 		goto err_fi_domain;
 	}
 
-	prp->cq_attr.size = prp->fi->tx_attr->size;
-	prp->cq_attr.flags = 0;
-	prp->cq_attr.format = FI_CQ_FORMAT_CONTEXT;
-	prp->cq_attr.wait_obj = FI_WAIT_NONE;
-	prp->cq_attr.signaling_vector = 0;
-	prp->cq_attr.wait_cond = FI_CQ_COND_NONE;
-	prp->cq_attr.wait_set = NULL;
+	struct fi_cq_attr cq_attr = {
+		.size = prp->fi->tx_attr->size,
+		.flags = 0,
+		.format = FI_CQ_FORMAT_CONTEXT,
+		.wait_obj = FI_WAIT_UNSPEC,
+		.signaling_vector = 0,
+		.wait_cond = FI_CQ_COND_NONE,
+		.wait_set = NULL,
+	};
 
 	ret = fi_mr_reg(prp->domain, prp->addr, prp->size, FI_WRITE,
 			0, 0, 0, &prp->mr, NULL);
@@ -264,7 +272,7 @@ pmemra_fabric_init(PMEMrapool *prp, unsigned short port)
 
 	size_t lane;
 	for (lane = 0; lane < prp->nlanes; lane++) {
-		ret = fi_cq_open(prp->domain, &prp->cq_attr,
+		ret = fi_cq_open(prp->domain, &cq_attr,
 				&prp->lanes[lane].cq, NULL);
 		if (ret) {
 			ERR("cannot open cq");
@@ -292,7 +300,8 @@ pmemra_fabric_init(PMEMrapool *prp, unsigned short port)
 
 	for (lane = 0; lane < prp->nlanes; lane++) {
 		ret = fi_ep_bind(prp->lanes[lane].ep,
-				&prp->lanes[lane].cq->fid, FI_TRANSMIT);
+				&prp->lanes[lane].cq->fid,
+				FI_TRANSMIT | FI_RECV);
 		if (ret) {
 			ERR("cannot bind cq");
 			goto err_fi_bind_cq;
@@ -506,7 +515,7 @@ pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
 	struct fi_cq_err_entry comp;
 	ssize_t ret;
 
-	ret = fi_write(prp->lanes[lane].ep, buff, len, NULL, 0,
+	ret = fi_write(prp->lanes[lane].ep, buff, len, fi_mr_desc(prp->mr), 0,
 			addr, prp->rkey, NULL);
 	if (ret) {
 		ERR("!fi_write failed");
