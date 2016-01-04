@@ -54,6 +54,7 @@
 struct pmemrad_client_lane {
 	struct fi_info *fi;
 	struct fid_ep *ep;
+	struct fid_cq *cq;
 };
 
 struct pmemrad_client {
@@ -69,7 +70,7 @@ struct pmemrad_client {
 	struct fi_info *fi;
 	struct fid_fabric *fabric;
 	struct fid_eq *eq;
-	struct fi_eq_attr eq_attr;
+	struct fid_cq *cq;
 	struct fid_pep *pep;
 	struct fid_domain *domain;
 	struct fid_mr *mr;
@@ -129,17 +130,42 @@ pmemrad_client_fabric_init(struct pmemrad_client *prc)
 		goto err_fi_fabric;
 	}
 
-	ret = fi_eq_open(prc->fabric, &prc->eq_attr, &prc->eq, NULL);
+	struct fi_eq_attr eq_attr = {
+		.size = 16,
+		.flags = 0,
+		.wait_obj = FI_WAIT_UNSPEC,
+		.signaling_vector = 0,
+		.wait_set = NULL,
+	};
+
+	ret = fi_eq_open(prc->fabric, &eq_attr, &prc->eq, NULL);
 	if (ret) {
 		log_err("cannot open event queue");
 		goto err_fi_eq_open;
 	}
+
+	struct fi_cq_attr cq_attr = {
+		.size = 2,
+		.flags = 0,
+		.format = FI_CQ_FORMAT_CONTEXT,
+		.wait_obj = FI_WAIT_NONE,
+		.signaling_vector = 0,
+		.wait_cond = FI_CQ_COND_NONE,
+		.wait_set = NULL,
+	};
 
 	ret = fi_domain(prc->fabric, prc->fi, &prc->domain, NULL);
 	if (ret) {
 		log_err("cannot access domain");
 		goto err_fi_domain;
 	}
+
+	ret = fi_cq_open(prc->domain, &cq_attr, &prc->cq, NULL);
+	if (ret) {
+		log_err("cannot open completion queue");
+		goto err_fi_cq_open;
+	}
+
 
 	ret = fi_mr_reg(prc->domain, prc->pool->addr, prc->pool->size,
 			FI_REMOTE_READ | FI_REMOTE_WRITE, 0, 0, 0,
@@ -190,6 +216,8 @@ err_fi_passive_ep:
 err_fi_bind:
 	fi_close(&prc->pep->fid);
 err_fi_mr_reg:
+	fi_close(&prc->cq->fid);
+err_fi_cq_open:
 	fi_close(&prc->domain->fid);
 err_fi_domain:
 	fi_close(&prc->eq->fid);
@@ -217,7 +245,14 @@ pmemrad_client_fabric_accept_ep(struct pmemrad_client *prc, size_t lane,
 	ret = fi_ep_bind(prc->lanes[lane].ep, &prc->eq->fid, 0);
 	if (ret) {
 		log_err("cannot bind event queue");
-		goto err_fi_ep_bind;
+		goto err_fi_ep_bind_eq;
+	}
+
+	ret = fi_ep_bind(prc->lanes[lane].ep, &prc->cq->fid,
+			FI_TRANSMIT | FI_RECV);
+	if (ret) {
+		log_err("cannot bind completion queue");
+		goto err_fi_ep_bind_cq;
 	}
 
 	ret = fi_accept(prc->lanes[lane].ep, NULL, 0);
@@ -230,7 +265,8 @@ pmemrad_client_fabric_accept_ep(struct pmemrad_client *prc, size_t lane,
 
 	return 0;
 err_fi_accept:
-err_fi_ep_bind:
+err_fi_ep_bind_cq:
+err_fi_ep_bind_eq:
 	fi_close(&prc->lanes[lane].ep->fid);
 err_fi_endpoint:
 	fi_freeinfo(info);
