@@ -34,10 +34,11 @@
 # examples/libpmemra/Makefile -- build the libpmemra examples
 #
 
-PROGS = write
+PROGS = write write_mt
 
 LIBS = -lpmemra -pthread
 
 include ../Makefile.inc
 
 write: write.o
+write_mt: write_mt.o
