@@ -94,6 +94,11 @@ struct pmemra_msg_unmap_resp {
 	uint32_t status;
 };
 
+struct pmemra_persist {
+	uint64_t addr;
+	uint64_t len;
+};
+
 static inline const char *
 pmemra_msg_str(enum pmemra_msg_type type)
 {

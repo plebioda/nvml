@@ -48,7 +48,7 @@ main(int argc, char *argv[])
 {
 	char buff[NLANES * BUFF_SIZE];
 	time_t timer;
-	struct tm* tm_info;
+	struct tm *tm_info;
 
 	if (argc != 2) {
 		printf("usage: %s <addr>", argv[0]);
@@ -59,7 +59,8 @@ main(int argc, char *argv[])
 		.nlanes = NLANES,
 	};
 
-	PMEMrapool *prp = pmemra_map(argv[1], "pool.set", buff, sizeof (buff), &attr);
+	PMEMrapool *prp = pmemra_map(argv[1], "pool.set",
+			buff, sizeof (buff), &attr);
 	if (!prp) {
 		perror("pmemra_map");
 		return -1;
@@ -73,11 +74,11 @@ main(int argc, char *argv[])
 			"Hello World ! %Y:%m:%d %H:%M:%S", tm_info);
 		printf("Lane %u: %s\n", lane, &buff[lane * BUFF_SIZE]);
 
-		if (pmemra_persist_lane(prp, &buff[lane * BUFF_SIZE], BUFF_SIZE, lane)) {
+		if (pmemra_persist_lane(prp, &buff[lane * BUFF_SIZE],
+					BUFF_SIZE, lane)) {
 			perror("pmemra_persist");
 			return -1;
 		}
-		sleep(1);
 	}
 	pmemra_unmap(prp);
 }

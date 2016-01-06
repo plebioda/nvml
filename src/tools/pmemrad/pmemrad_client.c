@@ -46,6 +46,9 @@
 #include <rdma/fabric.h>
 #include <rdma/fi_endpoint.h>
 #include <rdma/fi_cm.h>
+#include <rdma/fi_errno.h>
+
+#include <libpmem.h>
 
 #include "pmemra.h"
 #include "pmemrad.h"
@@ -54,7 +57,8 @@
 struct pmemrad_client_lane {
 	struct fi_info *fi;
 	struct fid_ep *ep;
-	struct fid_cq *cq;
+	struct pmemra_persist persist;
+	struct fid_mr *mr;
 };
 
 struct pmemrad_client {
@@ -131,7 +135,7 @@ pmemrad_client_fabric_init(struct pmemrad_client *prc)
 	}
 
 	struct fi_eq_attr eq_attr = {
-		.size = 16,
+		.size = 0,
 		.flags = 0,
 		.wait_obj = FI_WAIT_UNSPEC,
 		.signaling_vector = 0,
@@ -145,10 +149,10 @@ pmemrad_client_fabric_init(struct pmemrad_client *prc)
 	}
 
 	struct fi_cq_attr cq_attr = {
-		.size = 2,
+		.size = 0,
 		.flags = 0,
-		.format = FI_CQ_FORMAT_CONTEXT,
-		.wait_obj = FI_WAIT_NONE,
+		.format = FI_CQ_FORMAT_DATA,
+		.wait_obj = FI_WAIT_UNSPEC,
 		.signaling_vector = 0,
 		.wait_cond = FI_CQ_COND_NONE,
 		.wait_set = NULL,
@@ -165,7 +169,6 @@ pmemrad_client_fabric_init(struct pmemrad_client *prc)
 		log_err("cannot open completion queue");
 		goto err_fi_cq_open;
 	}
-
 
 	ret = fi_mr_reg(prc->domain, prc->pool->addr, prc->pool->size,
 			FI_REMOTE_READ | FI_REMOTE_WRITE, 0, 0, 0,
@@ -235,27 +238,34 @@ pmemrad_client_fabric_accept_ep(struct pmemrad_client *prc, size_t lane,
 	struct fi_info *info)
 {
 	int ret;
+	struct pmemrad_client_lane *lanep = &prc->lanes[lane];
 
-	ret = fi_endpoint(prc->domain, info, &prc->lanes[lane].ep, NULL);
+	ret = fi_endpoint(prc->domain, info, &lanep->ep, NULL);
 	if (ret) {
 		log_err("cannot create endpoint");
 		goto err_fi_endpoint;
 	}
 
-	ret = fi_ep_bind(prc->lanes[lane].ep, &prc->eq->fid, 0);
+	ret = fi_mr_reg(prc->domain, &lanep->persist, sizeof (lanep->persist),
+			FI_SEND | FI_RECV, 0, 0, 0, &lanep->mr, NULL);
+	if (ret) {
+		log_err("cannot register memory");
+		goto err_fi_mr_reg;
+	}
+
+	ret = fi_ep_bind(lanep->ep, &prc->eq->fid, 0);
 	if (ret) {
 		log_err("cannot bind event queue");
 		goto err_fi_ep_bind_eq;
 	}
 
-	ret = fi_ep_bind(prc->lanes[lane].ep, &prc->cq->fid,
-			FI_TRANSMIT | FI_RECV);
+	ret = fi_ep_bind(lanep->ep, &prc->cq->fid, FI_TRANSMIT | FI_RECV);
 	if (ret) {
 		log_err("cannot bind completion queue");
 		goto err_fi_ep_bind_cq;
 	}
 
-	ret = fi_accept(prc->lanes[lane].ep, NULL, 0);
+	ret = fi_accept(lanep->ep, NULL, 0);
 	if (ret) {
 		log_err("accept failed");
 		goto err_fi_accept;
@@ -267,7 +277,9 @@ pmemrad_client_fabric_accept_ep(struct pmemrad_client *prc, size_t lane,
 err_fi_accept:
 err_fi_ep_bind_cq:
 err_fi_ep_bind_eq:
-	fi_close(&prc->lanes[lane].ep->fid);
+	fi_close(&lanep->mr->fid);
+err_fi_mr_reg:
+	fi_close(&lanep->ep->fid);
 err_fi_endpoint:
 	fi_freeinfo(info);
 	return ret;
@@ -278,6 +290,7 @@ pmemrad_client_fabric_close_ep(struct pmemrad_client *prc, size_t lane)
 {
 	fi_cancel(&prc->lanes[lane].ep->fid, NULL);
 	fi_close(&prc->lanes[lane].ep->fid);
+	fi_close(&prc->lanes[lane].mr->fid);
 	fi_freeinfo(prc->lanes[lane].fi);
 }
 
@@ -357,6 +370,16 @@ pmemrad_client_fabric_accept(struct pmemrad_client *prc)
 				goto err_fi_accept_ep;
 			}
 
+			struct pmemrad_client_lane *lanep = &prc->lanes[i];
+			rret = fi_recv(lanep->ep, &lanep->persist,
+				sizeof (lanep->persist), fi_mr_desc(lanep->mr),
+				0, lanep);
+			if (rret < 0) {
+				log_err("cannot post recv buffer");
+				goto err_fi_recv;
+			}
+
+
 			nlanes++;
 		}
 
@@ -365,6 +388,7 @@ pmemrad_client_fabric_accept(struct pmemrad_client *prc)
 	log_info("connected: %s", inet_ntoa(prc->sock_addr.sin_addr));
 
 	return 0;
+err_fi_recv:
 err_fi_accept_ep:
 	for (size_t i = 0; i < prc->nlanes; i++)
 		if (prc->lanes[i].ep)
@@ -517,6 +541,58 @@ pmemrad_client_handle_msg(struct pmemrad_client *prc,
 	return ret;
 }
 
+static int
+pmemrad_client_read_persists(struct pmemrad_client *prc)
+{
+	struct fi_cq_data_entry entry;
+	ssize_t ret;
+	while ((ret = fi_cq_read(prc->cq, &entry, 1)) != -FI_EAGAIN) {
+
+		if (ret != 1) {
+			log_err("error reading completion queue");
+			return (int)ret;
+		}
+
+		if (entry.flags & FI_SEND)
+			continue;
+
+		struct pmemrad_client_lane *lanep = entry.op_context;
+
+		void *addr = (void *)lanep->persist.addr;
+		size_t len = lanep->persist.len;
+
+		if (lanep->persist.addr < (uintptr_t)prc->pool->addr ||
+			lanep->persist.addr + len >
+			(uintptr_t)prc->pool->addr + prc->pool->size) {
+			log_err("invalid address");
+			return -1;
+		}
+
+		pmem_persist(addr, len);
+
+		lanep->persist.addr = ~lanep->persist.addr;
+		lanep->persist.len = ~lanep->persist.len;
+
+		ret = fi_send(lanep->ep, &lanep->persist,
+				sizeof (lanep->persist),
+				fi_mr_desc(lanep->mr), 0, NULL);
+		if (ret) {
+			log_err("!fi_send");
+			return (int)ret;
+		}
+
+		ret = fi_recv(lanep->ep, &lanep->persist,
+			sizeof (lanep->persist), fi_mr_desc(lanep->mr),
+			0, lanep);
+		if (ret < 0) {
+			log_err("cannot post recv buffer");
+			return (int)ret;
+		}
+	}
+
+	return 0;
+}
+
 static void *
 pmemrad_client_thread(void *arg)
 {
@@ -539,6 +615,8 @@ pmemrad_client_thread(void *arg)
 			log_err("!poll");
 			break;
 		} else if (ret == 0) {
+			if (prc->cq)
+				pmemrad_client_read_persists(prc);
 			continue;
 		}
 
