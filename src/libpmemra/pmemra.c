@@ -191,10 +191,97 @@ pmemra_msg_recv(PMEMrapool *prp, void *msg_buff, size_t msg_len)
 }
 
 static int
-pmemra_fabric_init(PMEMrapool *prp, unsigned short port)
+pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 {
+	int ret;
 	struct fi_eq_cm_entry entry;
 	uint32_t event;
+	struct pmemra_lane *lanep = &prp->lanes[lane];
+	struct fi_cq_attr cq_attr = {
+		.size = prp->fi->tx_attr->size,
+		.flags = 0,
+		.format = FI_CQ_FORMAT_CONTEXT,
+		.wait_obj = FI_WAIT_UNSPEC,
+		.signaling_vector = 0,
+		.wait_cond = FI_CQ_COND_NONE,
+		.wait_set = NULL,
+	};
+
+	ret = fi_cq_open(prp->domain, &cq_attr, &lanep->cq, NULL);
+	if (ret) {
+		ERR("cannot open cq");
+		goto err_fi_cq_open;
+	}
+
+	ret = fi_endpoint(prp->domain, prp->fi, &lanep->ep, NULL);
+	if (ret) {
+		ERR("cannot open endpoint");
+		goto err_fi_endpoint;
+	}
+
+	ret = fi_ep_bind(lanep->ep, &prp->eq->fid, 0);
+	if (ret) {
+		ERR("cannot bind event queue");
+		goto err_fi_ep_bind_eq;
+	}
+
+	ret = fi_ep_bind(lanep->ep, &lanep->cq->fid, FI_TRANSMIT | FI_RECV);
+	if (ret) {
+		ERR("cannot bind cq");
+		goto err_fi_ep_bind_cq;
+	}
+
+	ret = fi_enable(lanep->ep);
+	if (ret) {
+		ERR("cannot enable ep");
+		goto err_fi_enable;
+	}
+
+	ret = fi_connect(lanep->ep, prp->fi->dest_addr, NULL, 0);
+	if (ret) {
+		ERR("cannot connect");
+		goto err_fi_connect;
+	}
+
+	ssize_t rret = fi_eq_sread(prp->eq, &event, &entry,
+				sizeof (entry), -1, 0);
+	if ((size_t)rret != sizeof (entry)) {
+		ERR("cannot eq sread ");
+		goto err_fi_eq_sread;
+	}
+
+	if (event != FI_CONNECTED ||
+		entry.fid != &lanep->ep->fid) {
+		ERR("unexpected event");
+		goto err_unexp_event;
+	}
+
+	return 0;
+err_unexp_event:
+err_fi_eq_sread:
+err_fi_connect:
+err_fi_enable:
+err_fi_ep_bind_cq:
+err_fi_ep_bind_eq:
+	fi_close(&lanep->ep->fid);
+err_fi_endpoint:
+	fi_close(&lanep->cq->fid);
+err_fi_cq_open:
+	return ret;
+}
+
+static void
+pmemra_fabric_deinit_lane(PMEMrapool *prp, size_t lane)
+{
+	struct pmemra_lane *lanep = &prp->lanes[lane];
+	fi_shutdown(lanep->ep, 0);
+	fi_close(&lanep->ep->fid);
+	fi_close(&lanep->cq->fid);
+}
+
+static int
+pmemra_fabric_init(PMEMrapool *prp, unsigned short port)
+{
 	int ret;
 
 	struct fi_info *hints = fi_allocinfo();
@@ -253,16 +340,6 @@ pmemra_fabric_init(PMEMrapool *prp, unsigned short port)
 		goto err_fi_domain;
 	}
 
-	struct fi_cq_attr cq_attr = {
-		.size = prp->fi->tx_attr->size,
-		.flags = 0,
-		.format = FI_CQ_FORMAT_CONTEXT,
-		.wait_obj = FI_WAIT_UNSPEC,
-		.signaling_vector = 0,
-		.wait_cond = FI_CQ_COND_NONE,
-		.wait_set = NULL,
-	};
-
 	ret = fi_mr_reg(prp->domain, prp->addr, prp->size, FI_WRITE,
 			0, 0, 0, &prp->mr, NULL);
 	if (ret) {
@@ -272,90 +349,18 @@ pmemra_fabric_init(PMEMrapool *prp, unsigned short port)
 
 	size_t lane;
 	for (lane = 0; lane < prp->nlanes; lane++) {
-		ret = fi_cq_open(prp->domain, &cq_attr,
-				&prp->lanes[lane].cq, NULL);
+		ret = pmemra_fabric_init_lane(prp, lane);
 		if (ret) {
-			ERR("cannot open cq");
-			goto err_fi_cq_open;
-		}
-	}
-
-	for (lane = 0; lane < prp->nlanes; lane++) {
-		ret = fi_endpoint(prp->domain, prp->fi,
-				&prp->lanes[lane].ep, NULL);
-		if (ret) {
-			ERR("cannot open endpoint");
-			goto err_fi_endpoint;
-		}
-	}
-
-	for (lane = 0; lane < prp->nlanes; lane++) {
-		ret = fi_ep_bind(prp->lanes[lane].ep,
-				&prp->eq->fid, 0);
-		if (ret) {
-			ERR("cannot bind event queue");
-			goto err_fi_bind_eq;
-		}
-	}
-
-	for (lane = 0; lane < prp->nlanes; lane++) {
-		ret = fi_ep_bind(prp->lanes[lane].ep,
-				&prp->lanes[lane].cq->fid,
-				FI_TRANSMIT | FI_RECV);
-		if (ret) {
-			ERR("cannot bind cq");
-			goto err_fi_bind_cq;
-		}
-	}
-
-	for (lane = 0; lane < prp->nlanes; lane++) {
-		ret = fi_enable(prp->lanes[lane].ep);
-		if (ret) {
-			ERR("cannot enable ep");
-			goto err_fi_enable;
-		}
-	}
-
-	for (lane = 0; lane < prp->nlanes; lane++) {
-		ret = fi_connect(prp->lanes[lane].ep,
-				prp->fi->dest_addr, NULL, 0);
-		if (ret) {
-			ERR("cannot connect");
-			goto err_fi_connect;
-		}
-
-		ssize_t rret = fi_eq_sread(prp->eq, &event, &entry,
-				sizeof (entry), -1, 0);
-		if ((size_t)rret != sizeof (entry)) {
-			ERR("cannot eq sread ");
-			goto err_fi_eq_sread;
-		}
-
-		if (event != FI_CONNECTED ||
-			entry.fid != &prp->lanes[lane].ep->fid) {
-			ERR("unexpected event");
-			goto err_unexp_event;
+			ERR("cannot init lane %lu", lane);
+			goto err_fabric_init_lane;
 		}
 	}
 
 	fi_freeinfo(hints);
 	return 0;
-err_unexp_event:
-err_fi_eq_sread:
+err_fabric_init_lane:
 	for (size_t i = 0; i < lane; i++)
-		fi_shutdown(prp->lanes[i].ep, 0);
-err_fi_connect:
-err_fi_enable:
-err_fi_bind_cq:
-err_fi_bind_eq:
-	lane = prp->nlanes;
-err_fi_endpoint:
-	for (size_t i = 0; i < lane; i++)
-		fi_close(&prp->lanes[i].ep->fid);
-	lane = prp->nlanes;
-err_fi_cq_open:
-	for (size_t i = 0; i < lane; i++)
-		fi_close(&prp->lanes[i].cq->fid);
+		pmemra_fabric_deinit_lane(prp, lane);
 	fi_close(&prp->mr->fid);
 err_fi_mr_reg:
 	fi_close(&prp->domain->fid);
@@ -374,11 +379,8 @@ err_alloc_dest_addr:
 static void
 pmemra_fabric_deinit(PMEMrapool *prp)
 {
-	for (size_t lane = 0; lane < prp->nlanes; lane++) {
-		fi_shutdown(prp->lanes[lane].ep, 0);
-		fi_close(&prp->lanes[lane].ep->fid);
-		fi_close(&prp->lanes[lane].cq->fid);
-	}
+	for (size_t lane = 0; lane < prp->nlanes; lane++)
+		pmemra_fabric_deinit_lane(prp, lane);
 	fi_close(&prp->domain->fid);
 	fi_close(&prp->eq->fid);
 	fi_close(&prp->fabric->fid);
