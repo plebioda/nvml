@@ -57,8 +57,10 @@
 struct pmemrad_client_lane {
 	struct fi_info *fi;
 	struct fid_ep *ep;
-	struct pmemra_persist persist;
-	struct fid_mr *mr;
+	struct pmemra_persist tx_persist;
+	struct fid_mr *tx_mr;
+	struct pmemra_persist rx_persist;
+	struct fid_mr *rx_mr;
 };
 
 struct pmemrad_client {
@@ -246,11 +248,20 @@ pmemrad_client_fabric_accept_ep(struct pmemrad_client *prc, size_t lane,
 		goto err_fi_endpoint;
 	}
 
-	ret = fi_mr_reg(prc->domain, &lanep->persist, sizeof (lanep->persist),
-			FI_SEND | FI_RECV, 0, 0, 0, &lanep->mr, NULL);
+	ret = fi_mr_reg(prc->domain, &lanep->tx_persist,
+			sizeof (lanep->tx_persist),
+			FI_SEND, 0, 0, 0, &lanep->tx_mr, NULL);
 	if (ret) {
 		log_err("cannot register memory");
-		goto err_fi_mr_reg;
+		goto err_fi_mr_reg_tx;
+	}
+
+	ret = fi_mr_reg(prc->domain, &lanep->rx_persist,
+			sizeof (lanep->rx_persist),
+			FI_RECV, 0, 0, 0, &lanep->rx_mr, NULL);
+	if (ret) {
+		log_err("cannot register memory");
+		goto err_fi_mr_reg_rx;
 	}
 
 	ret = fi_ep_bind(lanep->ep, &prc->eq->fid, 0);
@@ -277,8 +288,10 @@ pmemrad_client_fabric_accept_ep(struct pmemrad_client *prc, size_t lane,
 err_fi_accept:
 err_fi_ep_bind_cq:
 err_fi_ep_bind_eq:
-	fi_close(&lanep->mr->fid);
-err_fi_mr_reg:
+	fi_close(&lanep->rx_mr->fid);
+err_fi_mr_reg_rx:
+	fi_close(&lanep->tx_mr->fid);
+err_fi_mr_reg_tx:
 	fi_close(&lanep->ep->fid);
 err_fi_endpoint:
 	fi_freeinfo(info);
@@ -290,7 +303,8 @@ pmemrad_client_fabric_close_ep(struct pmemrad_client *prc, size_t lane)
 {
 	fi_cancel(&prc->lanes[lane].ep->fid, NULL);
 	fi_close(&prc->lanes[lane].ep->fid);
-	fi_close(&prc->lanes[lane].mr->fid);
+	fi_close(&prc->lanes[lane].rx_mr->fid);
+	fi_close(&prc->lanes[lane].tx_mr->fid);
 	fi_freeinfo(prc->lanes[lane].fi);
 }
 
@@ -371,8 +385,9 @@ pmemrad_client_fabric_accept(struct pmemrad_client *prc)
 			}
 
 			struct pmemrad_client_lane *lanep = &prc->lanes[i];
-			rret = fi_recv(lanep->ep, &lanep->persist,
-				sizeof (lanep->persist), fi_mr_desc(lanep->mr),
+			rret = fi_recv(lanep->ep, &lanep->rx_persist,
+				sizeof (lanep->rx_persist),
+				fi_mr_desc(lanep->rx_mr),
 				0, lanep);
 			if (rret < 0) {
 				log_err("cannot post recv buffer");
@@ -553,16 +568,25 @@ pmemrad_client_read_persists(struct pmemrad_client *prc)
 			return (int)ret;
 		}
 
-		if (entry.flags & FI_SEND)
+		if (entry.flags & FI_SEND) {
 			continue;
+		}
 
 		struct pmemrad_client_lane *lanep = entry.op_context;
 
-		void *addr = (void *)lanep->persist.addr;
-		size_t len = lanep->persist.len;
+		void *addr = (void *)lanep->rx_persist.addr;
+		size_t len = lanep->rx_persist.len;
 
-		if (lanep->persist.addr < (uintptr_t)prc->pool->addr ||
-			lanep->persist.addr + len >
+		ret = fi_recv(lanep->ep, &lanep->rx_persist,
+			sizeof (lanep->rx_persist), fi_mr_desc(lanep->rx_mr),
+			0, lanep);
+		if (ret < 0) {
+			log_err("cannot post recv buffer");
+			return (int)ret;
+		}
+
+		if (lanep->rx_persist.addr < (uintptr_t)prc->pool->addr ||
+			lanep->rx_persist.addr + len >
 			(uintptr_t)prc->pool->addr + prc->pool->size) {
 			log_err("invalid address");
 			return -1;
@@ -570,24 +594,17 @@ pmemrad_client_read_persists(struct pmemrad_client *prc)
 
 		pmem_persist(addr, len);
 
-		lanep->persist.addr = ~lanep->persist.addr;
-		lanep->persist.len = ~lanep->persist.len;
+		lanep->tx_persist.addr = ~(uint64_t)addr;
+		lanep->tx_persist.len = ~(uint64_t)len;
 
-		ret = fi_send(lanep->ep, &lanep->persist,
-				sizeof (lanep->persist),
-				fi_mr_desc(lanep->mr), 0, NULL);
+		ret = fi_send(lanep->ep, &lanep->tx_persist,
+				sizeof (lanep->tx_persist),
+				fi_mr_desc(lanep->tx_mr), 0, lanep);
 		if (ret) {
 			log_err("!fi_send");
 			return (int)ret;
 		}
 
-		ret = fi_recv(lanep->ep, &lanep->persist,
-			sizeof (lanep->persist), fi_mr_desc(lanep->mr),
-			0, lanep);
-		if (ret < 0) {
-			log_err("cannot post recv buffer");
-			return (int)ret;
-		}
 	}
 
 	return 0;
