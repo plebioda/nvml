@@ -80,7 +80,7 @@ struct pmemra {
 	struct fid_eq *eq;
 	struct fid_domain *domain;
 	struct fid_mr *mr;
-	size_t nlanes;
+	unsigned nlanes;
 	struct pmemra_lane *lanes;
 };
 
@@ -91,7 +91,7 @@ pmemra_default_attr(PMEMraattr *attr)
 	if (ncpus < 1)
 		ncpus = 1;
 
-	attr->nlanes = ncpus * PMEMRA_DEF_NLANES_MUL;
+	attr->nlanes = (unsigned)ncpus * PMEMRA_DEF_NLANES_MUL;
 }
 
 static int
@@ -436,11 +436,16 @@ pmemra_map(const char *hostname, const char *poolset_name,
 		goto err_msg_alloc;
 	}
 
+	if (msg_len > UINT32_MAX) {
+		ERR("invalid message length");
+		goto err_msg_alloc;
+	}
+
 	msg->hdr.type = PMEMRA_MSG_MAP;
-	msg->hdr.size = msg_len;
+	msg->hdr.size = (uint32_t)msg_len;
 	msg->mem_size = size;
 	msg->fname_len = 0;
-	msg->poolset_len = poolset_len;
+	msg->poolset_len = (uint32_t)poolset_len;
 	msg->nlanes = prp->nlanes;
 	memcpy(msg->data, prp->poolset_name, poolset_len);
 
@@ -471,7 +476,7 @@ pmemra_map(const char *hostname, const char *poolset_name,
 		goto err_alloc_lanes;
 	}
 
-	ret = pmemra_fabric_init(prp, resp.port);
+	ret = pmemra_fabric_init(prp, (unsigned short)resp.port);
 	if (ret) {
 		ERR("fabric init");
 		goto err_fabric_init;

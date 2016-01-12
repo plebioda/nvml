@@ -71,7 +71,7 @@ struct pmemrad_client {
 	int run;
 	const struct pmemrad_pool *pool;
 	uint64_t rkey;
-	size_t nlanes;
+	unsigned nlanes;
 	struct sockaddr_in fabric_sock_addr;
 	struct fi_info *fi;
 	struct fid_fabric *fabric;
