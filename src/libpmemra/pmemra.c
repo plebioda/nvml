@@ -60,8 +60,10 @@ unsigned Lane_cur = 0;
 struct pmemra_lane {
 	struct fid_ep *ep;
 	struct fid_cq *cq;
-	struct fid_mr *mr;
-	struct pmemra_persist persist;
+	struct fid_mr *rx_mr;
+	struct fid_mr *tx_mr;
+	struct pmemra_persist rx_persist;
+	struct pmemra_persist tx_persist;
 };
 
 struct pmemra {
@@ -200,7 +202,7 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 	uint32_t event;
 	struct pmemra_lane *lanep = &prp->lanes[lane];
 	struct fi_cq_attr cq_attr = {
-		.size = prp->fi->tx_attr->size,
+		.size = 0,
 		.flags = 0,
 		.format = FI_CQ_FORMAT_CONTEXT,
 		.wait_obj = FI_WAIT_UNSPEC,
@@ -221,11 +223,20 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 		goto err_fi_endpoint;
 	}
 
-	ret = fi_mr_reg(prp->domain, &lanep->persist, sizeof (lanep->persist),
-			FI_SEND | FI_RECV, 0, 0, 0, &lanep->mr, NULL);
+	ret = fi_mr_reg(prp->domain, &lanep->tx_persist,
+			sizeof (lanep->tx_persist),
+			FI_SEND, 0, 0, 0, &lanep->tx_mr, NULL);
 	if (ret) {
 		ERR("cannot register persist memory");
-		goto err_fi_mr_reg;
+		goto err_fi_mr_reg_tx;
+	}
+
+	ret = fi_mr_reg(prp->domain, &lanep->rx_persist,
+			sizeof (lanep->rx_persist),
+			FI_RECV, 0, 0, 0, &lanep->rx_mr, NULL);
+	if (ret) {
+		ERR("cannot register persist memory");
+		goto err_fi_mr_reg_rx;
 	}
 
 	ret = fi_ep_bind(lanep->ep, &prp->eq->fid, 0);
@@ -272,8 +283,10 @@ err_fi_connect:
 err_fi_enable:
 err_fi_ep_bind_cq:
 err_fi_ep_bind_eq:
-	fi_close(&lanep->mr->fid);
-err_fi_mr_reg:
+	fi_close(&lanep->rx_mr->fid);
+err_fi_mr_reg_rx:
+	fi_close(&lanep->tx_mr->fid);
+err_fi_mr_reg_tx:
 	fi_close(&lanep->ep->fid);
 err_fi_endpoint:
 	fi_close(&lanep->cq->fid);
@@ -286,7 +299,8 @@ pmemra_fabric_deinit_lane(PMEMrapool *prp, size_t lane)
 {
 	struct pmemra_lane *lanep = &prp->lanes[lane];
 	fi_shutdown(lanep->ep, 0);
-	fi_close(&lanep->mr->fid);
+	fi_close(&lanep->tx_mr->fid);
+	fi_close(&lanep->rx_mr->fid);
 	fi_close(&lanep->ep->fid);
 	fi_close(&lanep->cq->fid);
 }
@@ -544,15 +558,26 @@ pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
 
 	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, -1);
 	if (ret != 1) {
-		ERR("!fi_cq_sread");
+		struct fi_cq_err_entry err;
+		fi_cq_readerr(lanep->cq, &err, 0);
+		ERR("write fi_cq_sread: %ld %s", ret,
+			fi_cq_strerror(lanep->cq, err.prov_errno,
+				err.err_data, NULL, 0));
 		return (int)ret;
 	}
 
-	lanep->persist.addr = addr;
-	lanep->persist.len = len;
+	lanep->tx_persist.addr = addr;
+	lanep->tx_persist.len = len;
 
-	ret = fi_send(lanep->ep, &lanep->persist, sizeof (lanep->persist),
-			fi_mr_desc(lanep->mr), 0, NULL);
+	ret = fi_recv(lanep->ep, &lanep->rx_persist, sizeof (lanep->rx_persist),
+			fi_mr_desc(lanep->rx_mr), 0, NULL);
+	if (ret) {
+		ERR("!fi_send");
+		return (int)ret;
+	}
+
+	ret = fi_send(lanep->ep, &lanep->tx_persist, sizeof (lanep->tx_persist),
+			fi_mr_desc(lanep->tx_mr), 0, NULL);
 	if (ret) {
 		ERR("!fi_send");
 		return (int)ret;
@@ -560,25 +585,26 @@ pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
 
 	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, -1);
 	if (ret != 1) {
-		ERR("!fi_cq_sread");
-		return (int)ret;
-	}
-
-	ret = fi_recv(lanep->ep, &lanep->persist, sizeof (lanep->persist),
-			fi_mr_desc(lanep->mr), 0, NULL);
-	if (ret) {
-		ERR("!fi_send");
+		struct fi_cq_err_entry err;
+		fi_cq_readerr(lanep->cq, &err, 0);
+		ERR("send fi_cq_sread: %ld %s", ret,
+			fi_cq_strerror(lanep->cq, err.prov_errno,
+				err.err_data, NULL, 0));
 		return (int)ret;
 	}
 
 	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, -1);
 	if (ret != 1) {
-		ERR("!fi_cq_sread");
+		struct fi_cq_err_entry err;
+		fi_cq_readerr(lanep->cq, &err, 0);
+		ERR("recv fi_cq_sread: %ld %s", ret,
+			fi_cq_strerror(lanep->cq, err.prov_errno,
+				err.err_data, NULL, 0));
 		return (int)ret;
 	}
 
-	if (lanep->persist.addr != ~addr ||
-		lanep->persist.len != ~len) {
+	if (lanep->rx_persist.addr != ~addr ||
+		lanep->rx_persist.len != ~len) {
 		ERR("invalid response");
 		return -1;
 	}
