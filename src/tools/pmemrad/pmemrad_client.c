@@ -150,8 +150,11 @@ pmemrad_client_fabric_init(struct pmemrad_client *prc)
 		goto err_fi_eq_open;
 	}
 
+	size_t cq_size = prc->fi->tx_attr->size < prc->fi->rx_attr->size ?
+		prc->fi->tx_attr->size : prc->fi->rx_attr->size;
+
 	struct fi_cq_attr cq_attr = {
-		.size = 0,
+		.size = cq_size,
 		.flags = 0,
 		.format = FI_CQ_FORMAT_DATA,
 		.wait_obj = FI_WAIT_UNSPEC,
@@ -160,6 +163,7 @@ pmemrad_client_fabric_init(struct pmemrad_client *prc)
 		.wait_set = NULL,
 	};
 
+	log_info("cq size %lu", cq_attr.size);
 	ret = fi_domain(prc->fabric, prc->fi, &prc->domain, NULL);
 	if (ret) {
 		log_err("cannot access domain");
@@ -559,12 +563,18 @@ pmemrad_client_handle_msg(struct pmemrad_client *prc,
 static int
 pmemrad_client_read_persists(struct pmemrad_client *prc)
 {
+	struct fi_cq_err_entry err;
 	struct fi_cq_data_entry entry;
 	ssize_t ret;
 	while ((ret = fi_cq_read(prc->cq, &entry, 1)) != -FI_EAGAIN) {
 
 		if (ret != 1) {
 			log_err("error reading completion queue");
+			if (ret == -FI_EAVAIL) {
+				fi_cq_readerr(prc->cq, &err, 0);
+				log_err("%s", fi_cq_strerror(prc->cq,
+					err.prov_errno, NULL, NULL, 0));
+			}
 			return (int)ret;
 		}
 
@@ -627,7 +637,7 @@ pmemrad_client_thread(void *arg)
 		return (void *)((uintptr_t)-1);
 	}
 	while (prc->run) {
-		ret = poll(&fds, 1, 200);
+		ret = poll(&fds, 1, 100);
 		if (ret < 0) {
 			log_err("!poll");
 			break;
