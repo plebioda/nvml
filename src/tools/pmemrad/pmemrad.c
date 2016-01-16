@@ -74,16 +74,9 @@ pmemrad_alloc(void)
 	}
 
 	TAILQ_INIT(&prd->clients);
-	prd->pdb = pmemrad_pdb_alloc(".");
-	if (!prd->pdb) {
-		/* XXX */
-		goto err_pdb_alloc;
-	}
+	pmemrad_opts_default(&prd->opts);
 
 	return prd;
-err_pdb_alloc:
-	free(prd);
-	return NULL;
 }
 
 static void
@@ -223,15 +216,21 @@ int
 main(int argc, char *argv[])
 {
 	util_init();
+	int ret;
 	struct pmemrad *prd = pmemrad_alloc();
 	if (!prd)
 		return 1;
 
-	int ret;
-	ret = pmemrad_parse_opts(argc, argv, &prd->opts);
+	ret = pmemrad_opts_parse(argc, argv, &prd->opts);
 	if (ret) {
 		log_err("parsing options failed");
 		return 1;
+	}
+
+	prd->pdb = pmemrad_pdb_alloc(prd->opts.dir);
+	if (!prd->pdb) {
+		ret = 1;
+		goto out;
 	}
 
 	signal(SIGINT, signal_handler);
@@ -239,8 +238,8 @@ main(int argc, char *argv[])
 
 	Run = 1;
 	ret = pmemrad_start(prd, &Run);
-
-	pmemrad_free_opts(&prd->opts);
+out:
+	pmemrad_opts_free(&prd->opts);
 	pmemrad_free(prd);
 	return ret;
 }
