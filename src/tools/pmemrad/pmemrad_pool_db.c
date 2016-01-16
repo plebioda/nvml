@@ -36,40 +36,36 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <errno.h>
+#include <pthread.h>
+#include <sys/queue.h>
 
 #include "pmemrad.h"
 #include "pmemrad_pool_db.h"
 #include "util.h"
 
 struct pmemrad_pool_desc {
+	LIST_ENTRY(pmemrad_pool_desc) next;
 	struct pmemrad_pool pool;
-
-	unsigned used;
 	struct pool_set *set;
 };
 
 struct pmemrad_pdb {
-	struct pmemrad_pool_desc *pools;
-	size_t npools;
+	LIST_HEAD(pool_desc_head, pmemrad_pool_desc) head;
+	pthread_mutex_t lock;
+	char *root_dir;
 };
 
-static struct pmemrad_pool *
-pmemrad_pdb_get_desc(struct pmemrad_pdb *pdb, const char *name)
+static void
+pmemrad_pdb_pool_close(struct pmemrad_pdb *pdb, struct pmemrad_pool_desc *ppd)
 {
-	if (!pdb->npools)
-		return NULL;
-	ASSERTne(pdb->pools, NULL);
-
-	for (size_t i = 0; i < pdb->npools; i++) {
-		if (strcmp(name, pdb->pools[i].pool.name) == 0)
-			return &pdb->pools[i].pool;
-	}
-
-	return NULL;
+	util_poolset_close(ppd->set, 0);
+	free(ppd->pool.name);
+	free(ppd);
 }
 
 struct pmemrad_pdb *
-pmemrad_pdb_alloc(void)
+pmemrad_pdb_alloc(const char *root_dir)
 {
 	struct pmemrad_pdb *pdb = calloc(1, sizeof (*pdb));
 	if (!pdb) {
@@ -77,76 +73,128 @@ pmemrad_pdb_alloc(void)
 		return NULL;
 	}
 
+	if (pthread_mutex_init(&pdb->lock, NULL))
+		goto err_mutex_init;
+
+	pdb->root_dir = strdup(root_dir);
+	if (!pdb->root_dir) {
+		log_err("!root dir alloc");
+		goto err_strdup;
+	}
+
+	LIST_INIT(&pdb->head);
+
 	return pdb;
+err_strdup:
+err_mutex_init:
+	free(pdb);
+	return NULL;
 }
 
 void
 pmemrad_pdb_free(struct pmemrad_pdb *pdb)
 {
-	for (size_t i = 0; i < pdb->npools; i++) {
-		free((char *)pdb->pools[i].pool.name);
-		util_poolset_close(pdb->pools[i].set, 0);
+	while (!LIST_EMPTY(&pdb->head)) {
+		struct pmemrad_pool_desc *ppd = LIST_FIRST(&pdb->head);
+		pmemrad_pdb_pool_close(pdb, ppd);
+		LIST_REMOVE(ppd, next);
 	}
-	free(pdb->pools);
+
 	free(pdb);
 }
 
-int
-pmemrad_pdb_add_dir(struct pmemrad_pdb *pdb, const char *dir)
+static struct pmemrad_pool_desc *
+pmemrad_pdb_lookup(struct pmemrad_pdb *pdb, const char *name)
 {
-	/* XXX */
-	return -1;
+	struct pmemrad_pool_desc *ppd;
+	LIST_FOREACH(ppd, &pdb->head, next) {
+		if (strcmp(name, ppd->pool.name) == 0)
+			return ppd;
+	}
+
+	return NULL;
 }
 
-int
-pmemrad_pdb_add_set(struct pmemrad_pdb *pdb, const char *path)
+static char *
+pmemrad_pdb_get_path(struct pmemrad_pdb *pdb, const char *name)
 {
+	size_t dir_len = strlen(pdb->root_dir);
+	size_t name_len = strlen(name);
+	size_t path_len = dir_len + name_len + 2;
+	char *path = malloc(path_len);
+	if (!path)
+		return NULL;
+
+	int ret = snprintf(path, path_len, "%s/%s", pdb->root_dir, name);
+	if (ret < 0 || (size_t)ret != path_len - 1) {
+		free(path);
+		return NULL;
+	}
+
+	return path;
+
+}
+
+const struct pmemrad_pool *
+pmemrad_pdb_open(struct pmemrad_pdb *pdb, const char *name)
+{
+	pthread_mutex_lock(&pdb->lock);
+
+	struct pmemrad_pool_desc *ppd;
+
+	ppd = pmemrad_pdb_lookup(pdb, name);
+	if (ppd) {
+		errno = EBUSY;
+		goto err_unlock;
+	}
+
+	char *path = pmemrad_pdb_get_path(pdb, name);
+	if (!path) {
+		goto err_unlock;
+	}
+
 	struct pool_set *set;
 	int ret = util_pool_open_nocheck(&set, path, 0, 4096);
 	if (ret) {
 		log_err("!pool open");
-		return ret;
+		goto err_pool_open;
 	}
 
-	size_t new_size = (pdb->npools + 1) * sizeof (struct pmemrad_pool_desc);
-	struct pmemrad_pool_desc *pools = realloc(pdb->pools, new_size);
-	if (!pools) {
-		log_err("!pools realloc");
-		goto err_pools_realloc;
+	ppd = calloc(1, sizeof (*ppd));
+	if (!ppd) {
+		goto err_calloc;
 	}
 
-	pools[pdb->npools].used = 0;
-	pools[pdb->npools].set = set;
-	pools[pdb->npools].pool.desc = &pools[pdb->npools];
-	pools[pdb->npools].pool.name = strdup(path);
-	pools[pdb->npools].pool.addr = set->replica[0]->part[0].addr;
-	pools[pdb->npools].pool.size = set->poolsize;
+	ppd->set = set;
+	ppd->pool.desc = ppd;
+	ppd->pool.name = strdup(name);
+	if (!ppd->pool.name)
+		goto err_strdup;
 
-	pdb->npools++;
-	pdb->pools = pools;
+	ppd->pool.addr = set->replica[0]->part[0].addr;
+	ppd->pool.size = set->poolsize;
 
-	return 0;
-err_pools_realloc:
+	LIST_INSERT_HEAD(&pdb->head, ppd, next);
+
+	pthread_mutex_unlock(&pdb->lock);
+	return &ppd->pool;
+err_strdup:
+	free(ppd);
+err_calloc:
 	util_poolset_close(set, 0);
-	return -1;
-}
-
-int
-pmemrad_pdb_scan(struct pmemrad_pdb *pdb)
-{
-	/* XXX */
-	return -1;
-}
-
-const struct pmemrad_pool *
-pmemrad_pdb_hold(struct pmemrad_pdb *pdb, const char *name)
-{
-	/* XXX */
-	return pmemrad_pdb_get_desc(pdb, name);
+err_pool_open:
+	free(path);
+err_unlock:
+	pthread_mutex_unlock(&pdb->lock);
+	return NULL;
 }
 
 void
-pmemrad_pdb_release(struct pmemrad_pdb *pdb, const struct pmemrad_pool *prp)
+pmemrad_pdb_close(struct pmemrad_pdb *pdb, const struct pmemrad_pool *prp)
 {
-	/* XXX */
+	pthread_mutex_lock(&pdb->lock);
+	struct pmemrad_pool_desc *ppd = (struct pmemrad_pool_desc *)prp->desc;
+	LIST_REMOVE(ppd, next);
+	pmemrad_pdb_pool_close(pdb, ppd);
+	pthread_mutex_unlock(&pdb->lock);
 }

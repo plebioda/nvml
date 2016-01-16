@@ -460,7 +460,7 @@ pmemrad_client_msg_map(struct pmemrad_client *prc,
 		inet_ntoa(prc->sock_addr.sin_addr),
 		&msg->data[data_ptr]);
 
-	prc->pool = pmemrad_pdb_hold(prc->pdb, &msg->data[data_ptr]);
+	prc->pool = pmemrad_pdb_open(prc->pdb, &msg->data[data_ptr]);
 	if (!prc->pool) {
 		if (errno == EBUSY)
 			resp.status = PMEMRA_ERR_BUSY;
@@ -525,7 +525,7 @@ pmemrad_client_msg_unmap(struct pmemrad_client *prc,
 	ASSERTeq(hdrp->size, sizeof (*hdrp));
 
 	pmemrad_client_fabric_close(prc);
-	pmemrad_pdb_release(prc->pdb, prc->pool);
+	pmemrad_pdb_close(prc->pdb, prc->pool);
 	close(prc->sockfd);
 	prc->sockfd = -1;
 	prc->run = 0;
@@ -757,7 +757,7 @@ pmemrad_client_stop(struct pmemrad_client *prc)
 	prc->run = 0;
 	pthread_join(prc->thread, NULL);
 	pmemrad_client_fabric_close(prc);
-	pmemrad_pdb_release(prc->pdb, prc->pool);
+	pmemrad_pdb_close(prc->pdb, prc->pool);
 	close(prc->sockfd);
 	free(prc->lanes);
 	free(prc);

@@ -74,7 +74,7 @@ pmemrad_alloc(void)
 	}
 
 	TAILQ_INIT(&prd->clients);
-	prd->pdb = pmemrad_pdb_alloc();
+	prd->pdb = pmemrad_pdb_alloc(".");
 	if (!prd->pdb) {
 		/* XXX */
 		goto err_pdb_alloc;
@@ -233,8 +233,6 @@ main(int argc, char *argv[])
 		log_err("parsing options failed");
 		return 1;
 	}
-
-	ret = pmemrad_pdb_add_set(prd->pdb, "pool.set");
 
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
