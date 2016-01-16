@@ -34,21 +34,40 @@
  * pmemrad_opts.c -- XXX
  */
 #include <stdlib.h>
+#include <getopt.h>
+#include <stdint.h>
 
+#include "pmemra.h"
 #include "pmemrad.h"
 #include "pmemrad_opts.h"
 
-int
-pmemrad_parse_opts(int argc, char *argv[], struct pmemrad_opts *opts)
+void
+pmemrad_opts_default(struct pmemrad_opts *opts)
 {
-	/* XXX */
-	opts->address = NULL;
-	opts->port = "9228";
+	opts->foreground = 0;
+	opts->port = PMEMRA_PORT;
+	opts->dir = ".";
+}
+
+int
+pmemrad_opts_parse(int argc, char *argv[], struct pmemrad_opts *opts)
+{
+	int opt;
+	while ((opt = getopt(argc, argv, "p:d:")) != -1) {
+		switch (opt) {
+		case 'p':
+			opts->port = atoi(optarg);
+			break;
+		case 'd':
+			opts->dir = optarg;
+			break;
+		}
+	}
 	return 0;
 }
 
 void
-pmemrad_free_opts(struct pmemrad_opts *opts)
+pmemrad_opts_free(struct pmemrad_opts *opts)
 {
 	/* XXX */
 }

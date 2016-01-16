@@ -36,10 +36,10 @@
 
 struct pmemrad_opts {
 	bool foreground;
-
-	char *address;
-	char *port;
+	int port;
+	char *dir;
 };
 
-int pmemrad_parse_opts(int argc, char *argv[], struct pmemrad_opts *opts);
-void pmemrad_free_opts(struct pmemrad_opts *opts);
+void pmemrad_opts_default(struct pmemrad_opts *opts);
+int pmemrad_opts_parse(int argc, char *argv[], struct pmemrad_opts *opts);
+void pmemrad_opts_free(struct pmemrad_opts *opts);
