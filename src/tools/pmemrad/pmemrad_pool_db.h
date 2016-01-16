@@ -40,21 +40,18 @@
 struct pmemrad_pdb;
 
 struct pmemrad_pool {
-	const char *name;
+	char *name;
 	void *addr;
 	size_t size;
 	void *desc;
 };
 
-struct pmemrad_pdb *pmemrad_pdb_alloc(void);
+struct pmemrad_pdb *pmemrad_pdb_alloc(const char *root_dir);
 void pmemrad_pdb_free(struct pmemrad_pdb *pdb);
 
-int pmemrad_pdb_add_dir(struct pmemrad_pdb *pdb, const char *dir);
-int pmemrad_pdb_add_set(struct pmemrad_pdb *pdb, const char *set);
-int pmemrad_pdb_scan(struct pmemrad_pdb *pdb);
-const struct pmemrad_pool *
-pmemrad_pdb_hold(struct pmemrad_pdb *pdb, const char *name);
-void pmemrad_pdb_release(struct pmemrad_pdb *pdb,
-		const struct pmemrad_pool *prp);
+int pmemrad_pdb_set_dir(struct pmemrad_pdb *pdb, const char *dir);
+const struct pmemrad_pool *pmemrad_pdb_open(struct pmemrad_pdb *pdb,
+		const char *name);
+void pmemrad_pdb_close(struct pmemrad_pdb *pdb, const struct pmemrad_pool *prp);
 
 #endif /* PMEMRAD_POOL_DB_H  */
