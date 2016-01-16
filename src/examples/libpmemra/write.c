@@ -50,8 +50,8 @@ main(int argc, char *argv[])
 	time_t timer;
 	struct tm *tm_info;
 
-	if (argc != 2) {
-		printf("usage: %s <addr>", argv[0]);
+	if (argc != 3) {
+		printf("usage: %s <addr> <pool_name>", argv[0]);
 		return 1;
 	}
 
@@ -59,7 +59,7 @@ main(int argc, char *argv[])
 		.nlanes = NLANES,
 	};
 
-	PMEMrapool *prp = pmemra_map(argv[1], "pool.set",
+	PMEMrapool *prp = pmemra_map(argv[1], argv[2],
 			buff, sizeof (buff), &attr);
 	if (!prp) {
 		perror("pmemra_map");
