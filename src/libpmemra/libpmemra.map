@@ -36,10 +36,12 @@ libpmemra.so {
 	global:
 		pmemra_check_version;
 		pmemra_errormsg;
-		pmemra_map;
+		pmemra_open;
+		pmemra_close;
+		pmemra_create;
+		pmemra_remove;
 		pmemra_persist;
 		pmemra_persist_lane;
-		pmemra_unmap;
 	local:
 		*;
 };

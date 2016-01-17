@@ -34,11 +34,12 @@
 # examples/libpmemra/Makefile -- build the libpmemra examples
 #
 
-PROGS = write write_mt
+PROGS = write write_mt remove
 
-LIBS = -lpmemra -pthread
+LIBS = -lpmemra -pthread -luuid
 
 include ../Makefile.inc
 
 write: write.o
 write_mt: write_mt.o
+remove: remove.o
