@@ -82,11 +82,11 @@ main(int argc, char *argv[])
 		return -1;
 	}
 
-	PMEMraattr attr = {
+	struct pmemra_attr attr = {
 		.nlanes = nthreads,
 	};
 
-	prp = pmemra_map(addr, "pool.set",
+	prp = pmemra_open(addr, "pool.set",
 			buff, buff_size, &attr);
 	if (!prp) {
 		perror("pmemra_map");
@@ -100,5 +100,5 @@ main(int argc, char *argv[])
 	for (size_t id = 0; id < nthreads; id++)
 		pthread_join(threads[id], NULL);
 
-	pmemra_unmap(prp);
+	pmemra_close(prp);
 }

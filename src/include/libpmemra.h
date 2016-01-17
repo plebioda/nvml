@@ -42,15 +42,35 @@
 extern "C" {
 #endif
 
-typedef struct pmemra_attr {
+#define	POOL_HDR_SIG_LEN 8
+#define	POOL_HDR_UUID_LEN 16
+
+struct pmemra_pool_attr {
+	char signature[POOL_HDR_SIG_LEN];
+	uint32_t major;
+	uint32_t compat_features;
+	uint32_t incompat_features;
+	uint32_t ro_compat_features;
+	unsigned char poolset_uuid[POOL_HDR_UUID_LEN];
+	unsigned char uuid[POOL_HDR_UUID_LEN];
+	unsigned char prev_repl_uuid[POOL_HDR_UUID_LEN];
+	unsigned char next_repl_uuid[POOL_HDR_UUID_LEN];
+};
+
+struct pmemra_attr {
 	unsigned nlanes;
-} PMEMraattr;
+	struct pmemra_pool_attr pool_attr;
+};
 
 typedef struct pmemra PMEMrapool;
 
-PMEMrapool *pmemra_map(const char *hostname, const char *poolset_name,
-		void *addr, size_t size, PMEMraattr *attr);
-void pmemra_unmap(PMEMrapool *prp);
+PMEMrapool *pmemra_open(const char *hostname, const char *poolset_name,
+		void *addr, size_t size, struct pmemra_attr *attr);
+PMEMrapool *pmemra_create(const char *hostname, const char *poolset_name,
+		void *addr, size_t size, struct pmemra_attr *attr);
+int pmemra_remove(const char *hostname, const char *poolset_name);
+void pmemra_close(PMEMrapool *prp);
+ssize_t pmemra_read(PMEMrapool *prp, void *buff, size_t len, size_t offset);
 int pmemra_persist(PMEMrapool *prp, void *addr, size_t len);
 int pmemra_persist_lane(PMEMrapool *prp, void *addr, size_t len, unsigned lane);
 

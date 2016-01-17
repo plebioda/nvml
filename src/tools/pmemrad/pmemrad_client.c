@@ -416,11 +416,11 @@ err_fi_accept_ep:
 }
 
 static int
-pmemrad_client_msg_map(struct pmemrad_client *prc,
+pmemrad_client_msg_open(struct pmemrad_client *prc,
 	struct pmemra_msg_hdr *hdrp)
 {
-	struct pmemra_msg_map *msg =
-		(struct pmemra_msg_map *)hdrp;
+	struct pmemra_msg_open *msg =
+		(struct pmemra_msg_open *)hdrp;
 
 	int ret = 0;
 	/* XXX */
@@ -428,10 +428,10 @@ pmemrad_client_msg_map(struct pmemrad_client *prc,
 	ASSERTeq(msg->hdr.size, sizeof (*msg) + msg->fname_len +
 			msg->poolset_len);
 
-	struct pmemra_msg_map_resp resp = {
+	struct pmemra_msg_open_resp resp = {
 		.hdr = {
-			.type = PMEMRA_MSG_MAP_RESP,
-			.size = sizeof (struct pmemra_msg_map_resp),
+			.type = PMEMRA_MSG_OPEN_RESP,
+			.size = sizeof (struct pmemra_msg_open_resp),
 		},
 		.status = PMEMRA_ERR_FATAL,
 		.rkey = 0,
@@ -518,7 +518,7 @@ out_send_resp:
 }
 
 static int
-pmemrad_client_msg_unmap(struct pmemrad_client *prc,
+pmemrad_client_msg_close(struct pmemrad_client *prc,
 	struct pmemra_msg_hdr *hdrp)
 {
 	ASSERTeq(hdrp->type, PMEMRA_MSG_MAP);
@@ -532,9 +532,27 @@ pmemrad_client_msg_unmap(struct pmemrad_client *prc,
 	return 0;
 }
 
+static int
+pmemrad_client_msg_create(struct pmemrad_client *prc,
+	struct pmemra_msg_hdr *hdrp)
+{
+	/* XXX */
+	return -1;
+}
+
+static int
+pmemrad_client_msg_remove(struct pmemrad_client *prc,
+	struct pmemra_msg_hdr *hdrp)
+{
+	/* XXX */
+	return -1;
+}
+
 static msg_handler_t msg_handlers[] = {
-	[PMEMRA_MSG_MAP] = pmemrad_client_msg_map,
-	[PMEMRA_MSG_UNMAP] = pmemrad_client_msg_unmap,
+	[PMEMRA_MSG_OPEN] = pmemrad_client_msg_open,
+	[PMEMRA_MSG_CREATE] = pmemrad_client_msg_create,
+	[PMEMRA_MSG_REMOVE] = pmemrad_client_msg_remove,
+	[PMEMRA_MSG_CLOSE] = pmemrad_client_msg_close,
 	[MAX_PMEMRA_MSG] = NULL,
 };
 
