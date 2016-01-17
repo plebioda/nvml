@@ -31,7 +31,7 @@
  */
 
 /*
- * write.c -- XXX
+ * remove.c -- XXX
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -39,64 +39,19 @@
 #include <libpmemra.h>
 #include <time.h>
 #include <unistd.h>
-#include <uuid/uuid.h>
 
-#define	NLANES		4
-#define	BUFF_SIZE	256
 
 int
 main(int argc, char *argv[])
 {
-	char buff[NLANES * BUFF_SIZE];
-	time_t timer;
-	struct tm *tm_info;
-
-	if (argc != 4) {
-		printf("usage: %s open|create <addr> <pool_name>\n", argv[0]);
+	if (argc != 3) {
+		printf("usage: %s <addr> <pool_name>", argv[0]);
 		return 1;
 	}
 
-	char *cmd = argv[1];
-	char *addr = argv[2];
-	char *pool_name = argv[3];
-
-	struct pmemra_attr attr;
-	memset(&attr, 0, sizeof (attr));
-
-	attr.nlanes = NLANES;
-	PMEMrapool *prp;
-
-	if (strcmp(cmd, "create") == 0) {
-		strncpy(attr.pool_attr.signature, "PMEMOBJ", POOL_HDR_SIG_LEN);
-		uuid_generate(attr.pool_attr.uuid);
-		uuid_generate(attr.pool_attr.poolset_uuid);
-		uuid_generate(attr.pool_attr.prev_repl_uuid);
-		uuid_generate(attr.pool_attr.next_repl_uuid);
-
-		prp = pmemra_create(addr, pool_name, buff,
-				sizeof (buff), &attr);
-	} else {
-		prp = pmemra_open(addr, pool_name, buff,
-				sizeof (buff), &attr);
+	int ret = pmemra_remove(argv[1], argv[2]);
+	if (ret) {
+		perror("pmemra_remove");
 	}
-	if (!prp) {
-		perror("pmemra_map");
-		return -1;
-	}
-
-	for (unsigned lane = 0; lane < NLANES; lane++) {
-		time(&timer);
-		tm_info = localtime(&timer);
-
-		strftime(&buff[lane * BUFF_SIZE], BUFF_SIZE,
-			"Hello World ! %Y:%m:%d %H:%M:%S", tm_info);
-		printf("Lane %u: %s\n", lane, &buff[lane * BUFF_SIZE]);
-
-		if (pmemra_persist_lane(prp, &buff[lane * BUFF_SIZE],
-					BUFF_SIZE, lane)) {
-			perror("pmemra_persist");
-			return -1;
-		}
-	}
-	pmemra_close(prp);
+	return ret;
 }

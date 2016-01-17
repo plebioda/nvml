@@ -43,10 +43,14 @@
 #define	PMEMRA_DEF_NLANES_MUL	2
 
 enum pmemra_msg_type {
-	PMEMRA_MSG_MAP,
-	PMEMRA_MSG_MAP_RESP,
-	PMEMRA_MSG_UNMAP,
-	PMEMRA_MSG_UNMAP_RESP,
+	PMEMRA_MSG_OPEN,
+	PMEMRA_MSG_OPEN_RESP,
+	PMEMRA_MSG_CREATE,
+	PMEMRA_MSG_CREATE_RESP,
+	PMEMRA_MSG_CLOSE,
+	PMEMRA_MSG_CLOSE_RESP,
+	PMEMRA_MSG_REMOVE,
+	PMEMRA_MSG_REMOVE_RESP,
 
 	MAX_PMEMRA_MSG,
 };
@@ -69,7 +73,7 @@ struct pmemra_msg_hdr {
 	uint8_t data[];
 };
 
-struct pmemra_msg_map {
+struct pmemra_msg_open {
 	struct pmemra_msg_hdr hdr; /* message header */
 	uint64_t mem_size;	/* size of memory region */
 	uint32_t fname_len;	/* file name length */
@@ -78,7 +82,7 @@ struct pmemra_msg_map {
 	char data[];		/* NULL-terminated filename and poolset name */
 };
 
-struct pmemra_msg_map_resp {
+struct pmemra_msg_open_resp {
 	struct pmemra_msg_hdr hdr; /* message header */
 	uint32_t status;
 	uint32_t port;
@@ -88,8 +92,7 @@ struct pmemra_msg_map_resp {
 	uint32_t nlanes;
 };
 
-
-struct pmemra_msg_unmap_resp {
+struct pmemra_msg_close_resp {
 	struct pmemra_msg_hdr hdr;
 	uint32_t status;
 };
@@ -103,12 +106,20 @@ static inline const char *
 pmemra_msg_str(enum pmemra_msg_type type)
 {
 	switch (type) {
-	case PMEMRA_MSG_MAP:
-		return "MAP";
-	case PMEMRA_MSG_MAP_RESP:
-		return "MAP RESP";
-	case PMEMRA_MSG_UNMAP:
-		return "UNMAP";
+	case PMEMRA_MSG_OPEN:
+		return "OPEN";
+	case PMEMRA_MSG_OPEN_RESP:
+		return "OPEN RESP";
+	case PMEMRA_MSG_CREATE:
+		return "CREATE";
+	case PMEMRA_MSG_CREATE_RESP:
+		return "CREATE RESP";
+	case PMEMRA_MSG_CLOSE:
+		return "CLOSE";
+	case PMEMRA_MSG_REMOVE:
+		return "REMOVE";
+	case PMEMRA_MSG_REMOVE_RESP:
+		return "REMOVE RESP";
 	default:
 		return "UNKNOWN";
 	}

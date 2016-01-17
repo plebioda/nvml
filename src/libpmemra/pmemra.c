@@ -41,6 +41,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <errno.h>
 
 #include <rdma/fabric.h>
 #include <rdma/fi_endpoint.h>
@@ -87,7 +88,7 @@ struct pmemra {
 };
 
 static void
-pmemra_default_attr(PMEMraattr *attr)
+pmemra_default_attr(struct pmemra_attr *attr)
 {
 	long ncpus = sysconf(_SC_NPROCESSORS_ONLN);
 	if (ncpus < 1)
@@ -413,9 +414,24 @@ pmemra_fabric_deinit(PMEMrapool *prp)
 	fi_freeinfo(prp->fi);
 }
 
+int
+pmemra_remove(const char *hostname, const char *poolset_name)
+{
+	errno = ENOSYS;
+	return -1;
+}
+
 PMEMrapool *
-pmemra_map(const char *hostname, const char *poolset_name,
-	void *addr, size_t size, PMEMraattr *attr)
+pmemra_create(const char *hostname, const char *poolset_name,
+		void *addr, size_t size, struct pmemra_attr *attr)
+{
+	errno = ENOSYS;
+	return NULL;
+}
+
+PMEMrapool *
+pmemra_open(const char *hostname, const char *poolset_name,
+	void *addr, size_t size, struct pmemra_attr *attr)
 {
 	PMEMrapool *prp = calloc(1, sizeof (*prp));
 	if (!prp) {
@@ -424,7 +440,7 @@ pmemra_map(const char *hostname, const char *poolset_name,
 	}
 
 	if (!attr) {
-		PMEMraattr def_attr;
+		struct pmemra_attr def_attr;
 		pmemra_default_attr(&def_attr);
 		prp->nlanes = def_attr.nlanes;
 	} else {
@@ -443,8 +459,8 @@ pmemra_map(const char *hostname, const char *poolset_name,
 		goto err_connect;
 
 	size_t poolset_len = strlen(prp->poolset_name) + 1;
-	size_t msg_len = sizeof (struct pmemra_msg_map) + poolset_len;
-	struct pmemra_msg_map *msg = malloc(msg_len);
+	size_t msg_len = sizeof (struct pmemra_msg_open) + poolset_len;
+	struct pmemra_msg_open *msg = malloc(msg_len);
 	if (!msg) {
 		ERR("!msg alloc");
 		goto err_msg_alloc;
@@ -455,7 +471,7 @@ pmemra_map(const char *hostname, const char *poolset_name,
 		goto err_msg_alloc;
 	}
 
-	msg->hdr.type = PMEMRA_MSG_MAP;
+	msg->hdr.type = PMEMRA_MSG_OPEN;
 	msg->hdr.size = (uint32_t)msg_len;
 	msg->mem_size = size;
 	msg->fname_len = 0;
@@ -469,7 +485,7 @@ pmemra_map(const char *hostname, const char *poolset_name,
 		goto err_msg_send;
 	}
 
-	struct pmemra_msg_map_resp resp;
+	struct pmemra_msg_open_resp resp;
 	ret = pmemra_msg_recv(prp, &resp, sizeof (resp));
 	if (ret) {
 		ERR("recv msg failed");
@@ -515,10 +531,10 @@ err_poolset_name:
 }
 
 void
-pmemra_unmap(PMEMrapool *prp)
+pmemra_close(PMEMrapool *prp)
 {
 	struct pmemra_msg_hdr msg = {
-		.type = PMEMRA_MSG_UNMAP,
+		.type = PMEMRA_MSG_CLOSE,
 		.size = sizeof (struct pmemra_msg_hdr),
 	};
 	int ret;
@@ -530,6 +546,13 @@ pmemra_unmap(PMEMrapool *prp)
 	pmemra_close_connection(prp);
 	free(prp->poolset_name);
 	free(prp);
+}
+
+ssize_t
+pmemra_read(PMEMrapool *prp, void *buff, size_t len, size_t offset)
+{
+	errno = ENOSYS;
+	return -1;
 }
 
 int
