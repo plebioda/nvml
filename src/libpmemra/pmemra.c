@@ -652,9 +652,5 @@ pmemra_persist_lane(PMEMrapool *prp, void *buff, size_t len, unsigned lane)
 	uint64_t offset = baddr - laddr;
 	uint64_t addr = prp->raddr + offset;
 
-	int ret = pmemra_fabric_write(prp, buff, len, addr, lane);
-	if (ret)
-		return ret;
-
-	return 0;
+	return pmemra_fabric_write(prp, buff, len, addr, lane);
 }
