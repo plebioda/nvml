@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -183,7 +183,7 @@ pmemra_msg_recv(PMEMrapool *prp, void *msg_buff, size_t msg_len)
 
 	ret = read(prp->sockfd, hdrp->data, hdrp->size - sizeof (*hdrp));
 	if (ret < 0) {
-		ERR("malformed message");
+		ERR("!read");
 		return -1;
 	}
 
@@ -228,7 +228,7 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 			sizeof (lanep->tx_persist),
 			FI_SEND, 0, 0, 0, &lanep->tx_mr, NULL);
 	if (ret) {
-		ERR("cannot register persist memory");
+		ERR("cannot register persistent memory");
 		goto err_fi_mr_reg_tx;
 	}
 
@@ -236,7 +236,7 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 			sizeof (lanep->rx_persist),
 			FI_RECV, 0, 0, 0, &lanep->rx_mr, NULL);
 	if (ret) {
-		ERR("cannot register persist memory");
+		ERR("cannot register persistent memory");
 		goto err_fi_mr_reg_rx;
 	}
 
@@ -575,7 +575,7 @@ pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
 	ret = fi_write(lanep->ep, buff, len, fi_mr_desc(prp->mr), 0,
 			addr, prp->rkey, NULL);
 	if (ret) {
-		ERR("!fi_write failed");
+		ERR("!fi_write");
 		return (int)ret;
 	}
 
@@ -595,7 +595,7 @@ pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
 	ret = fi_recv(lanep->ep, &lanep->rx_persist, sizeof (lanep->rx_persist),
 			fi_mr_desc(lanep->rx_mr), 0, NULL);
 	if (ret) {
-		ERR("!fi_send");
+		ERR("!fi_recv");
 		return (int)ret;
 	}
 
