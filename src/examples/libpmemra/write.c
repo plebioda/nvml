@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,6 +41,7 @@
 #include <unistd.h>
 #include <uuid/uuid.h>
 
+#define	TIMEOUT 1000
 #define	NLANES		4
 #define	BUFF_SIZE	256
 
@@ -93,7 +94,7 @@ main(int argc, char *argv[])
 		printf("Lane %u: %s\n", lane, &buff[lane * BUFF_SIZE]);
 
 		if (pmemra_persist_lane(prp, &buff[lane * BUFF_SIZE],
-					BUFF_SIZE, lane)) {
+					BUFF_SIZE, lane, TIMEOUT)) {
 			perror("pmemra_persist");
 			return -1;
 		}

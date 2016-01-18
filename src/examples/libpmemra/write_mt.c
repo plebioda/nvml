@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -42,6 +42,8 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#define	TIMEOUT 1000
+
 uint8_t *buff;
 size_t buff_size;
 size_t nthreads;
@@ -57,7 +59,7 @@ worker(void *arg)
 	uint8_t *ptr = &buff[id * size];
 	memset(ptr, id, size);
 	for (size_t i = 0; i < count; i++) {
-		pmemra_persist_lane(prp, ptr, size, id);
+		pmemra_persist_lane(prp, ptr, size, id, TIMEOUT);
 	}
 
 	return NULL;

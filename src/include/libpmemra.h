@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -71,8 +71,9 @@ PMEMrapool *pmemra_create(const char *hostname, const char *poolset_name,
 int pmemra_remove(const char *hostname, const char *poolset_name);
 void pmemra_close(PMEMrapool *prp);
 ssize_t pmemra_read(PMEMrapool *prp, void *buff, size_t len, size_t offset);
-int pmemra_persist(PMEMrapool *prp, void *addr, size_t len);
-int pmemra_persist_lane(PMEMrapool *prp, void *addr, size_t len, unsigned lane);
+int pmemra_persist(PMEMrapool *prp, void *addr, size_t len, int timeout);
+int pmemra_persist_lane(PMEMrapool *prp, void *addr, size_t len, unsigned lane,
+								int timeout);
 
 /*
  * XXX
