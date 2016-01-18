@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -156,8 +156,8 @@ pmemrad_client_fabric_init(struct pmemrad_client *prc)
 	struct fi_cq_attr cq_attr = {
 		.size = cq_size,
 		.flags = 0,
-		.format = FI_CQ_FORMAT_DATA,
-		.wait_obj = FI_WAIT_UNSPEC,
+		.format = FI_CQ_FORMAT_MSG,
+		.wait_obj = FI_WAIT_NONE,
 		.signaling_vector = 0,
 		.wait_cond = FI_CQ_COND_NONE,
 		.wait_set = NULL,
@@ -581,19 +581,22 @@ pmemrad_client_handle_msg(struct pmemrad_client *prc,
 static int
 pmemrad_client_read_persists(struct pmemrad_client *prc)
 {
-	struct fi_cq_err_entry err;
-	struct fi_cq_data_entry entry;
+	struct fi_cq_msg_entry entry;
 	ssize_t ret;
+	struct fi_eq_entry eq_entry;
+	uint32_t event;
+
 	while ((ret = fi_cq_read(prc->cq, &entry, 1)) != -FI_EAGAIN) {
 
 		if (ret != 1) {
 			log_err("error reading completion queue");
 			if (ret == -FI_EAVAIL) {
+				struct fi_cq_err_entry err;
 				fi_cq_readerr(prc->cq, &err, 0);
 				log_err("%s", fi_cq_strerror(prc->cq,
 					err.prov_errno, NULL, NULL, 0));
 			}
-			return (int)ret;
+			break;
 		}
 
 		if (entry.flags & FI_SEND) {
@@ -610,7 +613,7 @@ pmemrad_client_read_persists(struct pmemrad_client *prc)
 			0, lanep);
 		if (ret < 0) {
 			log_err("cannot post recv buffer");
-			return (int)ret;
+			break;
 		}
 
 		if (lanep->rx_persist.addr < (uintptr_t)prc->pool->addr ||
@@ -630,12 +633,15 @@ pmemrad_client_read_persists(struct pmemrad_client *prc)
 				fi_mr_desc(lanep->tx_mr), 0, lanep);
 		if (ret) {
 			log_err("!fi_send");
-			return (int)ret;
+			break;
 		}
 
 	}
 
-	return 0;
+	if (fi_eq_read(prc->eq, &event, &eq_entry, sizeof (eq_entry), 0) > 0)
+		log_err("event occured: %s", pmemra_event_str(event));
+
+	return (int)ret;
 }
 
 static void *
@@ -655,7 +661,7 @@ pmemrad_client_thread(void *arg)
 		return (void *)((uintptr_t)-1);
 	}
 	while (prc->run) {
-		ret = poll(&fds, 1, 100);
+		ret = poll(&fds, 1, 1);
 		if (ret < 0) {
 			log_err("!poll");
 			break;
