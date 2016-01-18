@@ -47,6 +47,7 @@
 #include <rdma/fi_endpoint.h>
 #include <rdma/fi_cm.h>
 #include <rdma/fi_rma.h>
+#include <rdma/fi_errno.h>
 
 /* XXX */
 #include <stdio.h>
@@ -573,12 +574,14 @@ pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
 	struct pmemra_lane *lanep = &prp->lanes[lane];
 	struct fi_cq_err_entry err;
 	const char *err_str;
+	struct fi_eq_entry eq_entry;
+	uint32_t event;
 
 	ret = fi_write(lanep->ep, buff, len, fi_mr_desc(prp->mr), 0,
 			addr, prp->rkey, NULL);
 	if (ret) {
 		ERR("!fi_write");
-		return (int)ret;
+		goto err_read_event;
 	}
 
 	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, timeout);
@@ -594,14 +597,14 @@ pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
 			fi_mr_desc(lanep->rx_mr), 0, NULL);
 	if (ret) {
 		ERR("!fi_recv");
-		return (int)ret;
+		goto err_read_event;
 	}
 
 	ret = fi_send(lanep->ep, &lanep->tx_persist, sizeof (lanep->tx_persist),
 			fi_mr_desc(lanep->tx_mr), 0, NULL);
 	if (ret) {
 		ERR("!fi_send");
-		return (int)ret;
+		goto err_read_event;
 	}
 
 	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, timeout);
@@ -625,10 +628,17 @@ pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
 	return 0;
 
 err_fi_cq_sread:
+	if (ret == -FI_EAGAIN)
+		ERR("%s fi_cq_sread: timeout!", err_str);
 	if (fi_cq_readerr(lanep->cq, &err, 0) > 0)
 		ERR("%s fi_cq_sread: %ld %s", err_str, ret,
 			fi_cq_strerror(lanep->cq, err.prov_errno,
 					err.err_data, NULL, 0));
+
+err_read_event:
+	if (fi_eq_read(prp->eq, &event, &eq_entry, sizeof (eq_entry), 0) > 0)
+		ERR("event occured: %s", pmemra_event_str(event));
+
 	return (int)ret;
 }
 

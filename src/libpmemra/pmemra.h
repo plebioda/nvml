@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,6 +33,8 @@
 /*
  * pmemra.h -- internal definitions for libpmemra
  */
+
+#include <rdma/fi_eq.h>
 
 #define	PMEMRA_LOG_PREFIX "libpmemra"
 #define	PMEMRA_LOG_LEVEL_VAR "PMEMRA_LOG_LEVEL"
@@ -145,5 +147,26 @@ pmemra_err_str(enum pmemra_err err)
 		return "fatal error";
 	default:
 		return "unknown";
+	}
+}
+
+static inline const char *
+pmemra_event_str(uint32_t event)
+{
+	switch (event) {
+		case FI_NOTIFY:
+			return "FI_NOTIFY";
+		case FI_CONNREQ:
+			return "FI_CONNREQ";
+		case FI_CONNECTED:
+			return "FI_CONNECTED";
+		case FI_SHUTDOWN:
+			return "FI_SHUTDOWN";
+		case FI_MR_COMPLETE:
+			return "FI_MR_COMPLETE";
+		case FI_AV_COMPLETE:
+			return "FI_AV_COMPLETE";
+		default:
+			return "unknown";
 	}
 }
