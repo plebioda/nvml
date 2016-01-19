@@ -7,7 +7,7 @@ set file format correct (./pool0.set)
 set file format correct (./pool6.set)
 ./pool7.set [no replica parts:4]
 ./pool8.set [exactly 'REPLICA' expected:3]
-./pool9.set [exactly 'REPLICA' expected:3]
+./pool9.set [target host name and target path expected:3]
 ./pool10.set [size and path expected:4]
 set file format correct (./pool11.set)
 set file format correct (./pool12.set)
@@ -34,3 +34,4 @@ set file format correct (./pool26.set)
 ./pool33.set [size and path expected:2]
 set file format correct (./pool34.set)
 set file format correct (./pool35.set)
+set file format correct (./pool36.set)
