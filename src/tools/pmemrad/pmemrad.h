@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -40,7 +40,7 @@
 #define	PMEMRAD_RDM_PORT	1235
 #define	PMEMRAD_MSG_PORT	1236
 
-/* loggin */
+/* logging */
 #define	log_err(fmt, args...)	fprintf(stderr, "error: " fmt "\n", ## args)
 #define	log_info(fmt, args...)	fprintf(stdout, fmt "\n", ## args)
 #define	ASSERT(x)
