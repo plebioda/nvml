@@ -53,6 +53,7 @@
 #include "pmemra.h"
 #include "pmemrad.h"
 #include "pmemrad_client.h"
+#include "util.h"
 
 struct pmemrad_client_lane {
 	struct fi_info *fi;
@@ -495,6 +496,17 @@ pmemrad_client_msg_open(struct pmemrad_client *prc,
 	resp.size = prc->pool->size;
 	resp.nlanes = prc->nlanes;
 
+	struct pool_hdr *phdr = prc->pool->addr;
+	resp.pool_attr.major = phdr->major;
+	resp.pool_attr.incompat_features = phdr->incompat_features;
+	resp.pool_attr.compat_features = phdr->compat_features;
+	resp.pool_attr.ro_compat_features = phdr->ro_compat_features;
+	memcpy(resp.pool_attr.signature, phdr->signature, POOL_HDR_SIG_LEN);
+	memcpy(resp.pool_attr.poolset_uuid, phdr->poolset_uuid, POOL_HDR_UUID_LEN);
+	memcpy(resp.pool_attr.uuid, phdr->uuid, POOL_HDR_UUID_LEN);
+	memcpy(resp.pool_attr.next_repl_uuid, phdr->next_repl_uuid, POOL_HDR_UUID_LEN);
+	memcpy(resp.pool_attr.prev_repl_uuid, phdr->prev_repl_uuid, POOL_HDR_UUID_LEN);
+
 	if (pmemrad_client_send(prc, &resp, sizeof (resp))) {
 		log_err("sending response failed");
 		/* XXX */
@@ -521,7 +533,7 @@ static int
 pmemrad_client_msg_close(struct pmemrad_client *prc,
 	struct pmemra_msg_hdr *hdrp)
 {
-	ASSERTeq(hdrp->type, PMEMRA_MSG_MAP);
+	ASSERTeq(hdrp->type, PMEMRA_MSG_CLOSE);
 	ASSERTeq(hdrp->size, sizeof (*hdrp));
 
 	pmemrad_client_fabric_close(prc);
@@ -536,16 +548,177 @@ static int
 pmemrad_client_msg_create(struct pmemrad_client *prc,
 	struct pmemra_msg_hdr *hdrp)
 {
+	struct pmemra_msg_open *msg =
+		(struct pmemra_msg_open *)hdrp;
+
+	int ret = 0;
 	/* XXX */
-	return -1;
+	ASSERTeq(msg->hdr.type, PMEMRA_MSG_CREATE);
+	ASSERTeq(msg->hdr.size, sizeof (*msg) + msg->fname_len +
+			msg->poolset_len);
+
+	struct pmemra_msg_open_resp resp = {
+		.hdr = {
+			.type = PMEMRA_MSG_CREATE_RESP,
+			.size = sizeof (struct pmemra_msg_open_resp),
+		},
+		.status = PMEMRA_ERR_FATAL,
+		.rkey = 0,
+		.port = 0,
+		.nlanes = 0,
+	};
+
+	size_t data_ptr  = 0;
+
+	if (msg->fname_len) {
+		resp.status = PMEMRA_ERR_FILE_NAME;
+		goto out_send_resp;
+	}
+
+	if (!msg->poolset_len) {
+		resp.status = PMEMRA_ERR_POOLSET;
+		goto out_send_resp;
+	}
+
+	if (msg->data[data_ptr + msg->poolset_len] != '\0') {
+		resp.status = PMEMRA_ERR_POOLSET;
+		goto out_send_resp;
+	}
+
+	log_info("map request from %s for %s",
+		inet_ntoa(prc->sock_addr.sin_addr),
+		&msg->data[data_ptr]);
+
+	prc->pool = pmemrad_pdb_create(prc->pdb, &msg->data[data_ptr],
+			&msg->pool_attr);
+	if (!prc->pool) {
+		if (errno == EBUSY)
+			resp.status = PMEMRA_ERR_BUSY;
+		else if (errno == EINVAL)
+			resp.status = PMEMRA_ERR_INVAL;
+		goto out_send_resp;
+	}
+
+	if (prc->pool->size < msg->mem_size) {
+		resp.status = PMEMRA_ERR_MEM_SIZE;
+		goto out_send_resp;
+	}
+
+	prc->nlanes = msg->nlanes;
+	prc->lanes = calloc(prc->nlanes, sizeof (*prc->lanes));
+	if (!prc->lanes) {
+		log_err("cannot allocate lanes");
+		resp.status = PMEMRA_ERR_FATAL;
+		goto out_send_resp;
+	}
+
+	ret = pmemrad_client_fabric_init(prc);
+	if (ret) {
+		resp.status = PMEMRA_ERR_FATAL;
+		goto out_send_resp;
+	}
+
+	resp.status = PMEMRA_ERR_SUCCESS;
+	resp.port = htons(prc->fabric_sock_addr.sin_port);
+	resp.rkey = prc->rkey;
+	resp.addr = (uint64_t)prc->pool->addr;
+	resp.size = prc->pool->size;
+	resp.nlanes = prc->nlanes;
+
+	struct pool_hdr *phdr = prc->pool->addr;
+	resp.pool_attr.major = phdr->major;
+	resp.pool_attr.incompat_features = phdr->incompat_features;
+	resp.pool_attr.compat_features = phdr->compat_features;
+	resp.pool_attr.ro_compat_features = phdr->ro_compat_features;
+	memcpy(resp.pool_attr.signature, phdr->signature, POOL_HDR_SIG_LEN);
+	memcpy(resp.pool_attr.poolset_uuid, phdr->poolset_uuid, POOL_HDR_UUID_LEN);
+	memcpy(resp.pool_attr.uuid, phdr->uuid, POOL_HDR_UUID_LEN);
+	memcpy(resp.pool_attr.next_repl_uuid, phdr->next_repl_uuid, POOL_HDR_UUID_LEN);
+	memcpy(resp.pool_attr.prev_repl_uuid, phdr->prev_repl_uuid, POOL_HDR_UUID_LEN);
+
+	if (pmemrad_client_send(prc, &resp, sizeof (resp))) {
+		log_err("sending response failed");
+		/* XXX */
+	}
+
+	ret = pmemrad_client_fabric_accept(prc);
+	if (ret) {
+		log_err("fabric accept failed");
+		/* XXX */
+	}
+
+	return 0;
+
+out_send_resp:
+	if (pmemrad_client_send(prc, &resp, sizeof (resp))) {
+		log_err("sending response failed");
+		/* XXX */
+	}
+
+	return ret;
 }
 
 static int
 pmemrad_client_msg_remove(struct pmemrad_client *prc,
 	struct pmemra_msg_hdr *hdrp)
 {
+	struct pmemra_msg_remove *msg =
+		(struct pmemra_msg_remove *)hdrp;
+
+	int ret = 0;
 	/* XXX */
-	return -1;
+	ASSERTeq(msg->hdr.size, sizeof (*msg) + msg->fname_len +
+			msg->poolset_len);
+
+	struct pmemra_msg_remove_resp resp = {
+		.hdr = {
+			.type = PMEMRA_MSG_REMOVE_RESP,
+			.size = sizeof (struct pmemra_msg_open_resp),
+		},
+		.status = PMEMRA_ERR_SUCCESS,
+	};
+
+	size_t data_ptr  = 0;
+
+	if (!msg->poolset_len) {
+		resp.status = PMEMRA_ERR_POOLSET;
+		goto out_send_resp;
+	}
+
+	if (msg->data[data_ptr + msg->poolset_len] != '\0') {
+		resp.status = PMEMRA_ERR_POOLSET;
+		goto out_send_resp;
+	}
+
+	log_info("map request from %s for %s",
+		inet_ntoa(prc->sock_addr.sin_addr),
+		&msg->data[data_ptr]);
+
+	ret = pmemrad_pdb_remove(prc->pdb, &msg->data[data_ptr]);
+	if (ret) {
+		if (errno == EBUSY)
+			resp.status = PMEMRA_ERR_BUSY;
+		else if (errno == EINVAL)
+			resp.status = PMEMRA_ERR_INVAL;
+		goto out_send_resp;
+	}
+
+	resp.status = PMEMRA_ERR_SUCCESS;
+
+	if (pmemrad_client_send(prc, &resp, sizeof (resp))) {
+		log_err("sending response failed");
+		/* XXX */
+	}
+
+	return 0;
+
+out_send_resp:
+	if (pmemrad_client_send(prc, &resp, sizeof (resp))) {
+		log_err("sending response failed");
+		/* XXX */
+	}
+
+	return ret;
 }
 
 static msg_handler_t msg_handlers[] = {
@@ -673,6 +846,10 @@ pmemrad_client_thread(void *arg)
 
 		ssize_t rret = read(prc->sockfd, hdrp, sizeof (*hdrp));
 		if (rret < 0) {
+			if (errno == ECONNRESET) {
+				ret = 0;
+				break;
+			}
 			log_err("!read");
 			ret = (int)rret;
 			break;

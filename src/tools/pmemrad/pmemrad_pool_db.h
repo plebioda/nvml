@@ -34,6 +34,8 @@
  * pmemrad_pool_db.h -- XXX
  */
 
+#include <libpmemra.h>
+
 #ifndef PMEMRAD_POOL_DB_H
 #define	PMEMRAD_POOL_DB_H
 
@@ -52,6 +54,9 @@ void pmemrad_pdb_free(struct pmemrad_pdb *pdb);
 int pmemrad_pdb_set_dir(struct pmemrad_pdb *pdb, const char *dir);
 const struct pmemrad_pool *pmemrad_pdb_open(struct pmemrad_pdb *pdb,
 		const char *name);
+const struct pmemrad_pool *pmemrad_pdb_create(struct pmemrad_pdb *pdb,
+		const char *name, struct pmemra_pool_attr *attr);
+int pmemrad_pdb_remove(struct pmemrad_pdb *pdb, const char *name);
 void pmemrad_pdb_close(struct pmemrad_pdb *pdb, const struct pmemrad_pool *prp);
 
 #endif /* PMEMRAD_POOL_DB_H  */

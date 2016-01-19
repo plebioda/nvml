@@ -37,6 +37,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <errno.h>
+#include <unistd.h>
 #include <pthread.h>
 #include <sys/queue.h>
 
@@ -133,6 +134,108 @@ pmemrad_pdb_get_path(struct pmemrad_pdb *pdb, const char *name)
 
 	return path;
 
+}
+
+const struct pmemrad_pool *
+pmemrad_pdb_create(struct pmemrad_pdb *pdb,
+		const char *name, struct pmemra_pool_attr *attr)
+{
+	pthread_mutex_lock(&pdb->lock);
+
+	struct pmemrad_pool_desc *ppd;
+
+	ppd = pmemrad_pdb_lookup(pdb, name);
+	if (ppd) {
+		errno = EBUSY;
+		goto err_unlock;
+	}
+
+	char *path = pmemrad_pdb_get_path(pdb, name);
+	if (!path) {
+		goto err_unlock;
+	}
+
+	struct pool_set *set;
+	int ret = util_pool_create(&set, path, 0, 4096, 4096,
+		attr->signature, attr->major, attr->compat_features,
+		attr->incompat_features, attr->ro_compat_features);
+	if (ret) {
+		log_err("!pool open");
+		goto err_pool_open;
+	}
+
+	util_poolset_chmod(set, 0755);
+
+	ppd = calloc(1, sizeof (*ppd));
+	if (!ppd) {
+		goto err_calloc;
+	}
+
+	ppd->set = set;
+	ppd->pool.desc = ppd;
+	ppd->pool.name = strdup(name);
+	if (!ppd->pool.name)
+		goto err_strdup;
+
+	ppd->pool.addr = set->replica[0]->part[0].addr;
+	ppd->pool.size = set->poolsize;
+
+	LIST_INSERT_HEAD(&pdb->head, ppd, next);
+
+	pthread_mutex_unlock(&pdb->lock);
+	return &ppd->pool;
+err_strdup:
+	free(ppd);
+err_calloc:
+	util_poolset_close(set, 1);
+err_pool_open:
+	free(path);
+err_unlock:
+	pthread_mutex_unlock(&pdb->lock);
+	return NULL;
+}
+
+int
+pmemrad_pdb_remove(struct pmemrad_pdb *pdb, const char *name)
+{
+	pthread_mutex_lock(&pdb->lock);
+
+	struct pmemrad_pool_desc *ppd;
+
+	ppd = pmemrad_pdb_lookup(pdb, name);
+	if (ppd) {
+		errno = EBUSY;
+		goto err_unlock;
+	}
+
+	char *path = pmemrad_pdb_get_path(pdb, name);
+	if (!path) {
+		goto err_unlock;
+	}
+
+	struct pool_set *set;
+	int ret = util_pool_open_nocheck(&set, path, 0, 4096);
+	if (ret) {
+		log_err("!pool open");
+		goto err_pool_open;
+	}
+
+	for (unsigned r = 0; r < set->nreplicas; r++) {
+		for (unsigned p = 0; p < set->replica[r]->nparts; p++) {
+			const char *part_file = set->replica[r]->part[p].path;
+			unlink(part_file);
+		}
+	}
+
+	util_poolset_close(set, 1);
+
+	pthread_mutex_unlock(&pdb->lock);
+	return 0;
+err_pool_open:
+	free(path);
+err_unlock:
+	pthread_mutex_unlock(&pdb->lock);
+	return -1;
 }
 
 const struct pmemrad_pool *

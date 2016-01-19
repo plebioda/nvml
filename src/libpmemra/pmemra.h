@@ -35,6 +35,7 @@
  */
 
 #include <rdma/fi_eq.h>
+#include <libpmemra.h>
 
 #define	PMEMRA_LOG_PREFIX "libpmemra"
 #define	PMEMRA_LOG_LEVEL_VAR "PMEMRA_LOG_LEVEL"
@@ -76,12 +77,24 @@ struct pmemra_msg_hdr {
 	uint8_t data[];
 };
 
+struct pmemra_msg_remove {
+	struct pmemra_msg_hdr hdr; /* message header */
+	uint32_t poolset_len;	/* poolset name length */
+	char data[];		/* NULL-terminated filename and poolset name */
+};
+
+struct pmemra_msg_remove_resp {
+	struct pmemra_msg_hdr hdr; /* message header */
+	uint32_t status;
+};
+
 struct pmemra_msg_open {
 	struct pmemra_msg_hdr hdr; /* message header */
 	uint64_t mem_size;	/* size of memory region */
 	uint32_t fname_len;	/* file name length */
 	uint32_t poolset_len;	/* poolset name length */
 	uint32_t nlanes;	/* requested number of lanes */
+	struct pmemra_pool_attr pool_attr;
 	char data[];		/* NULL-terminated filename and poolset name */
 };
 
@@ -93,6 +106,7 @@ struct pmemra_msg_open_resp {
 	uint64_t addr;
 	uint64_t size;
 	uint32_t nlanes;
+	struct pmemra_pool_attr pool_attr;
 };
 
 struct pmemra_msg_close_resp {

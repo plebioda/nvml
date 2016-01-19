@@ -420,7 +420,67 @@ pmemra_fabric_deinit(PMEMrapool *prp)
 int
 pmemra_remove(const char *hostname, const char *poolset_name)
 {
-	errno = ENOSYS;
+	PMEMrapool *prp = calloc(1, sizeof (*prp));
+	if (!prp) {
+		ERR("!cannot allocate context");
+		return -1;
+	}
+
+	prp->poolset_name = strdup(poolset_name);
+	if (!prp->poolset_name)
+		goto err_poolset_name;
+
+	int ret;
+	ret = pmemra_connect(prp, hostname);
+	if (ret)
+		goto err_connect;
+
+	size_t poolset_len = strlen(prp->poolset_name) + 1;
+	size_t msg_len = sizeof (struct pmemra_msg_remove) + poolset_len;
+	struct pmemra_msg_remove *msg = malloc(msg_len);
+	if (!msg) {
+		ERR("!msg alloc");
+		goto err_msg_alloc;
+	}
+
+	if (msg_len > UINT32_MAX) {
+		ERR("invalid message length");
+		goto err_msg_alloc;
+	}
+
+	msg->hdr.type = PMEMRA_MSG_REMOVE;
+	msg->hdr.size = (uint32_t)msg_len;
+	msg->poolset_len = (uint32_t)poolset_len;
+	memcpy(msg->data, prp->poolset_name, poolset_len);
+
+	ret = pmemra_msg_send(prp, msg, msg_len);
+	if (ret) {
+		ERR("send msg failed");
+		goto err_msg_send;
+	}
+
+	struct pmemra_msg_remove_resp resp;
+	ret = pmemra_msg_recv(prp, &resp, sizeof (resp));
+	if (ret) {
+		ERR("recv msg failed");
+		goto err_msg_recv;
+	}
+
+	free(msg);
+	free(prp->poolset_name);
+	free(prp);
+	if (resp.status)
+		return -1;
+	return 0;
+err_msg_recv:
+err_msg_send:
+	free(msg);
+err_msg_alloc:
+	pmemra_close_connection(prp);
+err_connect:
+	free(prp->poolset_name);
+err_poolset_name:
+	free(prp);
 	return -1;
 }
 
@@ -428,7 +488,106 @@ PMEMrapool *
 pmemra_create(const char *hostname, const char *poolset_name,
 		void *addr, size_t size, struct pmemra_attr *attr)
 {
-	errno = ENOSYS;
+	if (!attr) {
+		errno = EFAULT;
+		return NULL;
+	}
+
+	PMEMrapool *prp = calloc(1, sizeof (*prp));
+	if (!prp) {
+		ERR("!cannot allocate context");
+		return NULL;
+	}
+
+	struct pmemra_attr def_attr;
+	pmemra_default_attr(&def_attr);
+
+	prp->nlanes = attr->nlanes ? attr->nlanes : def_attr.nlanes;
+	prp->cq_timeout = attr->cq_timeout ? attr->cq_timeout :
+		def_attr.cq_timeout;
+
+	prp->addr = addr;
+	prp->size = size;
+	prp->poolset_name = strdup(poolset_name);
+	if (!prp->poolset_name)
+		goto err_poolset_name;
+
+	int ret;
+	ret = pmemra_connect(prp, hostname);
+	if (ret)
+		goto err_connect;
+
+	size_t poolset_len = strlen(prp->poolset_name) + 1;
+	size_t msg_len = sizeof (struct pmemra_msg_open) + poolset_len;
+	struct pmemra_msg_open *msg = malloc(msg_len);
+	if (!msg) {
+		ERR("!msg alloc");
+		goto err_msg_alloc;
+	}
+
+	if (msg_len > UINT32_MAX) {
+		ERR("invalid message length");
+		goto err_msg_alloc;
+	}
+
+	msg->hdr.type = PMEMRA_MSG_CREATE;
+	msg->hdr.size = (uint32_t)msg_len;
+	msg->mem_size = size;
+	msg->fname_len = 0;
+	msg->poolset_len = (uint32_t)poolset_len;
+	msg->nlanes = prp->nlanes;
+	memcpy(&msg->pool_attr, &attr->pool_attr, sizeof (msg->pool_attr));
+	memcpy(msg->data, prp->poolset_name, poolset_len);
+
+	ret = pmemra_msg_send(prp, msg, msg_len);
+	if (ret) {
+		ERR("send msg failed");
+		goto err_msg_send;
+	}
+
+	struct pmemra_msg_open_resp resp;
+	ret = pmemra_msg_recv(prp, &resp, sizeof (resp));
+	if (ret) {
+		ERR("recv msg failed");
+		goto err_msg_recv;
+	}
+
+	printf("status %s port %d rkey 0x%jx nlanes %d\n",
+		pmemra_err_str(resp.status),
+		resp.port, resp.rkey, resp.nlanes);
+
+	memcpy(&attr->pool_attr, &resp.pool_attr, sizeof (msg->pool_attr));
+	prp->nlanes = resp.nlanes;
+	prp->rkey = resp.rkey;
+	prp->raddr = resp.addr;
+
+	prp->lanes = calloc(prp->nlanes, sizeof (*prp->lanes));
+	if (!prp->lanes) {
+		ERR("!cannot allocate lanes");
+		goto err_alloc_lanes;
+	}
+
+	ret = pmemra_fabric_init(prp, (unsigned short)resp.port);
+	if (ret) {
+		ERR("fabric init");
+		goto err_fabric_init;
+	}
+
+	LOG(1, "connected\n");
+	free(msg);
+	return prp;
+err_fabric_init:
+	free(prp->lanes);
+err_alloc_lanes:
+err_msg_recv:
+err_msg_send:
+	free(msg);
+err_msg_alloc:
+	pmemra_close_connection(prp);
+err_connect:
+	free(prp->poolset_name);
+err_poolset_name:
+	free(prp);
 	return NULL;
 }
 
