@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -65,6 +65,7 @@ enum parser_codes {
 	PARSER_PMEMPOOLSET,
 	PARSER_REPLICA,
 	PARSER_SIZE_PATH_EXPECTED,
+	PARSER_TARGET_PATH_EXPECTED,
 	PARSER_WRONG_SIZE,
 	PARSER_WRONG_PATH,
 	PARSER_SET_NO_PARTS,
@@ -79,6 +80,7 @@ static const char *parser_errstr[PARSER_MAX_CODE] = {
 	"the first line must be exactly 'PMEMPOOLSET'",
 	"exactly 'REPLICA' expected",
 	"size and path expected",
+	"target host name and target path expected",
 	"incorrect format of size",
 	"incorrect path (must be an absolute path)",
 	"no pool set parts",
@@ -208,6 +210,8 @@ util_poolset_free(struct pool_set *set)
 
 	for (unsigned r = 0; r < set->nreplicas; r++) {
 		struct pool_replica *rep = set->replica[r];
+		if (rep->remote)
+			Free(rep->remote);
 		for (unsigned p = 0; p < rep->nparts; p++) {
 			Free((void *)(rep->part[p].path));
 		}
@@ -395,6 +399,25 @@ parser_read_line(char *line, size_t *size, char **path)
 }
 
 /*
+ * parser_read_replica -- (internal) read line and validate remote replica
+ *                      from a pool set file
+ */
+static enum parser_codes
+parser_read_replica(char *line, char **address, char **path)
+{
+	parser_get_next_token(&line); /* 'REPLICA' keyword */
+	*address = parser_get_next_token(&line);
+	*path = parser_get_next_token(&line);
+
+	if (!(*address) || !(*path))
+		return PARSER_TARGET_PATH_EXPECTED;
+
+	LOG(10, "address '%s' path '%s'", *address, *path);
+
+	return PARSER_CONTINUE;
+}
+
+/*
  * util_parse_add_part -- (internal) add a new part file to the replica info
  */
 static int
@@ -465,6 +488,40 @@ util_parse_add_replica(struct pool_set **setp)
 }
 
 /*
+ * util_parse_add_remote_replica -- (internal) add a new remote replica
+ *                                  to the pool set info
+ */
+static int
+util_parse_add_remote_replica(struct pool_set **setp, char *address, char *path)
+{
+	LOG(3, "setp %p address %s path %s", setp, address, path);
+
+	ASSERTne(setp, NULL);
+	ASSERTne(address, NULL);
+	ASSERTne(path, NULL);
+
+	int ret = util_parse_add_replica(setp);
+	if (ret != 0)
+		return ret;
+
+	struct pool_set *set = *setp;
+	struct pool_replica *rep = set->replica[set->nreplicas - 1];
+	ASSERTne(rep, NULL);
+
+	rep->nparts = 0; /* it is a remote replica */
+
+	rep->remote = Malloc(sizeof (struct remote_replica));
+	if (rep->remote == NULL) {
+		ERR("!Malloc");
+		return -1;
+	}
+	rep->remote->address = address;
+	rep->remote->path = path;
+
+	return 0;
+}
+
+/*
  * util_poolset_parse -- (internal) parse pool set config file
  *
  * Returns 1 if the file is a valid pool set config file, 0 if the file
@@ -482,6 +539,7 @@ util_poolset_parse(const char *path, int fd, struct pool_set **setp)
 	char line[PARSER_MAX_LINE];
 	char *s;
 	char *ppath;
+	char *address;
 	char *cp;
 	size_t psize;
 	FILE *fs;
@@ -564,7 +622,21 @@ util_poolset_parse(const char *path, int fd, struct pool_set **setp)
 					POOLSET_REPLICA_SIG_LEN) == 0) {
 			if (line[POOLSET_REPLICA_SIG_LEN] != '\0') {
 				/* something more than 'REPLICA' */
-				result = PARSER_REPLICA;
+				if (!isblank(line[POOLSET_REPLICA_SIG_LEN])) {
+					result = PARSER_REPLICA;
+					continue;
+				}
+				/* remote REPLICA ? */
+				result = parser_read_replica(line, &address,
+									&ppath);
+				if (result == PARSER_CONTINUE) {
+					/* remote REPLICA */
+					LOG(10, "REMOTE REPLICA address %s "
+						"path %s", address, ppath);
+					if (util_parse_add_remote_replica(&set,
+								address, ppath))
+						goto err;
+				}
 			} else if (nparts >= 1) {
 				/* 'REPLICA' signature detected */
 				LOG(10, "REPLICA");

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, Intel Corporation
+ * Copyright (c) 2014-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -176,10 +176,19 @@ struct pool_set_part {
 	unsigned char uuid[POOL_HDR_UUID_LEN];
 };
 
+struct remote_replica {
+	char *address;
+	char *path;
+};
+
 struct pool_replica {
 	unsigned nparts;
 	size_t repsize;		/* total size of all the parts (mappings) */
 	int is_pmem;		/* true if all the parts are in PMEM */
+
+	/* remote replica - temporary solution */
+	struct remote_replica *remote;
+
 	struct pool_set_part part[];
 };
 
