@@ -37,8 +37,8 @@
 PROGS = write write_mt remove
 
 LIBS = -lpmemra -pthread -luuid
-
 include ../Makefile.inc
+CFLAGS += -I../../common
 
 write: write.o
 write_mt: write_mt.o
