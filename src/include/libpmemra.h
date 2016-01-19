@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -60,6 +60,7 @@ struct pmemra_pool_attr {
 struct pmemra_attr {
 	unsigned nlanes;
 	struct pmemra_pool_attr pool_attr;
+	int cq_timeout;	/* timeout value for fi_cq_sread() */
 };
 
 typedef struct pmemra PMEMrapool;
