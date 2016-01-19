@@ -45,6 +45,7 @@
 #define	PMEMRA_MAX_LANES	UINT_MAX
 #define	PMEMRA_DEF_NLANES_MUL	2
 #define	PMEMRA_DEF_CQ_TIMEOUT	1000	/* 1000ms = 1s */
+#define	PMEMRA_DEF_READ_SIZE	512
 
 enum pmemra_msg_type {
 	PMEMRA_MSG_OPEN,
@@ -113,6 +114,8 @@ struct pmemra_msg_close_resp {
 	struct pmemra_msg_hdr hdr;
 	uint32_t status;
 };
+
+#define	PMEMRA_READ	((uint64_t)1 << 63)
 
 struct pmemra_persist {
 	uint64_t addr;

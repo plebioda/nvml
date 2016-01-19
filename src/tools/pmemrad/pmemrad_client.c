@@ -502,10 +502,13 @@ pmemrad_client_msg_open(struct pmemrad_client *prc,
 	resp.pool_attr.compat_features = phdr->compat_features;
 	resp.pool_attr.ro_compat_features = phdr->ro_compat_features;
 	memcpy(resp.pool_attr.signature, phdr->signature, POOL_HDR_SIG_LEN);
-	memcpy(resp.pool_attr.poolset_uuid, phdr->poolset_uuid, POOL_HDR_UUID_LEN);
+	memcpy(resp.pool_attr.poolset_uuid, phdr->poolset_uuid,
+			POOL_HDR_UUID_LEN);
 	memcpy(resp.pool_attr.uuid, phdr->uuid, POOL_HDR_UUID_LEN);
-	memcpy(resp.pool_attr.next_repl_uuid, phdr->next_repl_uuid, POOL_HDR_UUID_LEN);
-	memcpy(resp.pool_attr.prev_repl_uuid, phdr->prev_repl_uuid, POOL_HDR_UUID_LEN);
+	memcpy(resp.pool_attr.next_repl_uuid, phdr->next_repl_uuid,
+			POOL_HDR_UUID_LEN);
+	memcpy(resp.pool_attr.prev_repl_uuid, phdr->prev_repl_uuid,
+			POOL_HDR_UUID_LEN);
 
 	if (pmemrad_client_send(prc, &resp, sizeof (resp))) {
 		log_err("sending response failed");
@@ -631,10 +634,13 @@ pmemrad_client_msg_create(struct pmemrad_client *prc,
 	resp.pool_attr.compat_features = phdr->compat_features;
 	resp.pool_attr.ro_compat_features = phdr->ro_compat_features;
 	memcpy(resp.pool_attr.signature, phdr->signature, POOL_HDR_SIG_LEN);
-	memcpy(resp.pool_attr.poolset_uuid, phdr->poolset_uuid, POOL_HDR_UUID_LEN);
+	memcpy(resp.pool_attr.poolset_uuid, phdr->poolset_uuid,
+			POOL_HDR_UUID_LEN);
 	memcpy(resp.pool_attr.uuid, phdr->uuid, POOL_HDR_UUID_LEN);
-	memcpy(resp.pool_attr.next_repl_uuid, phdr->next_repl_uuid, POOL_HDR_UUID_LEN);
-	memcpy(resp.pool_attr.prev_repl_uuid, phdr->prev_repl_uuid, POOL_HDR_UUID_LEN);
+	memcpy(resp.pool_attr.next_repl_uuid, phdr->next_repl_uuid,
+			POOL_HDR_UUID_LEN);
+	memcpy(resp.pool_attr.prev_repl_uuid, phdr->prev_repl_uuid,
+			POOL_HDR_UUID_LEN);
 
 	if (pmemrad_client_send(prc, &resp, sizeof (resp))) {
 		log_err("sending response failed");
@@ -780,6 +786,8 @@ pmemrad_client_read_persists(struct pmemrad_client *prc)
 
 		void *addr = (void *)lanep->rx_persist.addr;
 		size_t len = lanep->rx_persist.len;
+		int rd = (len & PMEMRA_READ) != 0;
+		len = len & ~PMEMRA_READ;
 
 		ret = fi_recv(lanep->ep, &lanep->rx_persist,
 			sizeof (lanep->rx_persist), fi_mr_desc(lanep->rx_mr),
@@ -796,19 +804,27 @@ pmemrad_client_read_persists(struct pmemrad_client *prc)
 			return -1;
 		}
 
-		pmem_persist(addr, len);
+		if (!rd) {
+			pmem_persist(addr, len);
 
-		lanep->tx_persist.addr = ~(uint64_t)addr;
-		lanep->tx_persist.len = ~(uint64_t)len;
+			lanep->tx_persist.addr = ~(uint64_t)addr;
+			lanep->tx_persist.len = ~(uint64_t)len;
 
-		ret = fi_send(lanep->ep, &lanep->tx_persist,
-				sizeof (lanep->tx_persist),
-				fi_mr_desc(lanep->tx_mr), 0, lanep);
-		if (ret) {
-			log_err("!fi_send");
-			break;
+			ret = fi_send(lanep->ep, &lanep->tx_persist,
+					sizeof (lanep->tx_persist),
+					fi_mr_desc(lanep->tx_mr), 0, lanep);
+			if (ret) {
+				log_err("!fi_send");
+				break;
+			}
+		} else {
+			ret = fi_send(lanep->ep, addr, len,
+					fi_mr_desc(prc->mr), 0, lanep);
+			if (ret) {
+				log_err("!fi_send");
+				break;
+			}
 		}
-
 	}
 
 	if (fi_eq_read(prc->eq, &event, &eq_entry, sizeof (eq_entry), 0) > 0)

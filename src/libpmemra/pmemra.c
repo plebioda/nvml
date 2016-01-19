@@ -66,6 +66,9 @@ struct pmemra_lane {
 	struct fid_mr *tx_mr;
 	struct pmemra_persist rx_persist;
 	struct pmemra_persist tx_persist;
+	size_t rd_size;
+	void *rd_buff;
+	struct fid_mr *rd_mr;
 };
 
 struct pmemra {
@@ -214,6 +217,13 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 		.wait_cond = FI_CQ_COND_NONE,
 		.wait_set = NULL,
 	};
+	lanep->rd_size = PMEMRA_DEF_READ_SIZE;
+	lanep->rd_buff = malloc(lanep->rd_size);
+	if (!lanep->rd_buff) {
+		ERR("cannot allocate read buffer");
+		ret = -1;
+		goto err_malloc_rd_buff;
+	}
 
 	ret = fi_cq_open(prp->domain, &cq_attr, &lanep->cq, NULL);
 	if (ret) {
@@ -242,6 +252,15 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 		ERR("cannot register persistent memory");
 		goto err_fi_mr_reg_rx;
 	}
+
+	ret = fi_mr_reg(prp->domain, &lanep->rd_buff,
+			lanep->rd_size, FI_RECV, 0, 0, 0,
+			&lanep->rd_mr, NULL);
+	if (ret) {
+		ERR("cannot register read buffer");
+		goto err_fi_mr_reg_rd;
+	}
+
 
 	ret = fi_ep_bind(lanep->ep, &prp->eq->fid, 0);
 	if (ret) {
@@ -287,6 +306,8 @@ err_fi_connect:
 err_fi_enable:
 err_fi_ep_bind_cq:
 err_fi_ep_bind_eq:
+	fi_close(&lanep->rd_mr->fid);
+err_fi_mr_reg_rd:
 	fi_close(&lanep->rx_mr->fid);
 err_fi_mr_reg_rx:
 	fi_close(&lanep->tx_mr->fid);
@@ -295,6 +316,8 @@ err_fi_mr_reg_tx:
 err_fi_endpoint:
 	fi_close(&lanep->cq->fid);
 err_fi_cq_open:
+	free(lanep->rd_buff);
+err_malloc_rd_buff:
 	return ret;
 }
 
@@ -556,6 +579,10 @@ pmemra_create(const char *hostname, const char *poolset_name,
 		pmemra_err_str(resp.status),
 		resp.port, resp.rkey, resp.nlanes);
 
+	if (resp.status != PMEMRA_ERR_SUCCESS) {
+		goto err_resp;
+	}
+
 	memcpy(&attr->pool_attr, &resp.pool_attr, sizeof (msg->pool_attr));
 	prp->nlanes = resp.nlanes;
 	prp->rkey = resp.rkey;
@@ -579,6 +606,7 @@ pmemra_create(const char *hostname, const char *poolset_name,
 err_fabric_init:
 	free(prp->lanes);
 err_alloc_lanes:
+err_resp:
 err_msg_recv:
 err_msg_send:
 	free(msg);
@@ -663,6 +691,10 @@ pmemra_open(const char *hostname, const char *poolset_name,
 		pmemra_err_str(resp.status),
 		resp.port, resp.rkey, resp.nlanes);
 
+	if (resp.status != PMEMRA_ERR_SUCCESS) {
+		goto err_resp;
+	}
+
 	prp->nlanes = resp.nlanes;
 	prp->rkey = resp.rkey;
 	prp->raddr = resp.addr;
@@ -685,6 +717,7 @@ pmemra_open(const char *hostname, const char *poolset_name,
 err_fabric_init:
 	free(prp->lanes);
 err_alloc_lanes:
+err_resp:
 err_msg_recv:
 err_msg_send:
 	free(msg);
@@ -718,8 +751,70 @@ pmemra_close(PMEMrapool *prp)
 ssize_t
 pmemra_read(PMEMrapool *prp, void *buff, size_t len, size_t offset)
 {
-	errno = ENOSYS;
-	return -1;
+	if (Lane == UINT_MAX)
+		Lane = __sync_fetch_and_add(&Lane_cur, 1) % prp->nlanes;
+
+	struct pmemra_lane *lanep = &prp->lanes[Lane];
+	struct fi_cq_entry comp;
+	struct fi_cq_err_entry err;
+	struct fi_eq_entry eq_entry;
+	const char *err_str;
+	uint32_t event;
+	ssize_t ret;
+
+	while (len) {
+		size_t rd_len = len > lanep->rd_size ? lanep->rd_size : len;
+		lanep->tx_persist.addr = prp->raddr + offset;
+		lanep->tx_persist.len = rd_len | PMEMRA_READ;
+
+
+		ret = fi_recv(lanep->ep, lanep->rd_buff, rd_len,
+				fi_mr_desc(lanep->rd_mr), 0, NULL);
+		if (ret) {
+			ERR("!fi_recv");
+			goto err_read_event;
+		}
+
+		ret = fi_send(lanep->ep, &lanep->tx_persist,
+			sizeof (lanep->tx_persist), fi_mr_desc(lanep->tx_mr),
+			0, NULL);
+		if (ret) {
+			ERR("!fi_send");
+			goto err_read_event;
+		}
+
+		ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, prp->cq_timeout);
+		if (ret != 1) {
+			err_str = "send";
+			goto err_fi_cq_sread;
+		}
+
+		ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, prp->cq_timeout);
+		if (ret != 1) {
+			err_str = "recv";
+			goto err_fi_cq_sread;
+		}
+
+		memcpy(buff, lanep->rd_buff, rd_len);
+		buff = (void *)((uintptr_t)buff + rd_len);
+		len -= rd_len;
+		offset += rd_len;
+	}
+
+	return (ssize_t)len;
+err_fi_cq_sread:
+	if (ret == -FI_EAGAIN)
+		ERR("%s fi_cq_sread: timeout (%i ms)!",
+			err_str, prp->cq_timeout);
+	if (fi_cq_readerr(lanep->cq, &err, 0) > 0)
+		ERR("%s fi_cq_sread: %ld %s", err_str, ret,
+			fi_cq_strerror(lanep->cq, err.prov_errno,
+					err.err_data, NULL, 0));
+err_read_event:
+	if (fi_eq_read(prp->eq, &event, &eq_entry, sizeof (eq_entry), 0) > 0)
+		ERR("event occured: %s", pmemra_event_str(event));
+
+	return (int)ret;
 }
 
 int

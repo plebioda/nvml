@@ -37,6 +37,7 @@ libpmemra.so {
 		pmemra_check_version;
 		pmemra_errormsg;
 		pmemra_open;
+		pmemra_read;
 		pmemra_close;
 		pmemra_create;
 		pmemra_remove;

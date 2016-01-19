@@ -41,6 +41,8 @@
 #include <unistd.h>
 #include <uuid/uuid.h>
 
+
+#include "util.h"
 #define	NLANES		4
 #define	BUFF_SIZE	256
 
@@ -82,6 +84,15 @@ main(int argc, char *argv[])
 	if (!prp) {
 		perror("pmemra_map");
 		return -1;
+	}
+
+	if (strcmp(cmd, "create") == 0) {
+		struct pool_hdr hdr;
+		ssize_t rd = pmemra_read(prp, &hdr, sizeof (hdr), 0);
+		if (rd) {
+			perror("pmemra_read");
+			return -1;
+		}
 	}
 
 	for (unsigned lane = 0; lane < NLANES; lane++) {
