@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,6 +47,7 @@
 #include <rdma/fi_endpoint.h>
 #include <rdma/fi_cm.h>
 #include <rdma/fi_rma.h>
+#include <rdma/fi_errno.h>
 
 /* XXX */
 #include <stdio.h>
@@ -85,6 +86,7 @@ struct pmemra {
 	struct fid_mr *mr;
 	unsigned nlanes;
 	struct pmemra_lane *lanes;
+	int cq_timeout;	/* timeout value for fi_cq_sread() */
 };
 
 static void
@@ -95,6 +97,7 @@ pmemra_default_attr(struct pmemra_attr *attr)
 		ncpus = 1;
 
 	attr->nlanes = (unsigned)ncpus * PMEMRA_DEF_NLANES_MUL;
+	attr->cq_timeout = PMEMRA_DEF_CQ_TIMEOUT;
 }
 
 static int
@@ -183,7 +186,7 @@ pmemra_msg_recv(PMEMrapool *prp, void *msg_buff, size_t msg_len)
 
 	ret = read(prp->sockfd, hdrp->data, hdrp->size - sizeof (*hdrp));
 	if (ret < 0) {
-		ERR("malformed message");
+		ERR("!read");
 		return -1;
 	}
 
@@ -228,7 +231,7 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 			sizeof (lanep->tx_persist),
 			FI_SEND, 0, 0, 0, &lanep->tx_mr, NULL);
 	if (ret) {
-		ERR("cannot register persist memory");
+		ERR("cannot register persistent memory");
 		goto err_fi_mr_reg_tx;
 	}
 
@@ -236,7 +239,7 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 			sizeof (lanep->rx_persist),
 			FI_RECV, 0, 0, 0, &lanep->rx_mr, NULL);
 	if (ret) {
-		ERR("cannot register persist memory");
+		ERR("cannot register persistent memory");
 		goto err_fi_mr_reg_rx;
 	}
 
@@ -443,8 +446,13 @@ pmemra_open(const char *hostname, const char *poolset_name,
 		struct pmemra_attr def_attr;
 		pmemra_default_attr(&def_attr);
 		prp->nlanes = def_attr.nlanes;
+		prp->cq_timeout = def_attr.cq_timeout;
 	} else {
 		prp->nlanes = attr->nlanes;
+		if (attr->cq_timeout > 0)
+			prp->cq_timeout = attr->cq_timeout;
+		else
+			prp->cq_timeout = PMEMRA_DEF_CQ_TIMEOUT;
 	}
 
 	prp->addr = addr;
@@ -571,22 +579,22 @@ pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
 	struct fi_cq_entry comp;
 	ssize_t ret;
 	struct pmemra_lane *lanep = &prp->lanes[lane];
+	struct fi_cq_err_entry err;
+	const char *err_str;
+	struct fi_eq_entry eq_entry;
+	uint32_t event;
 
 	ret = fi_write(lanep->ep, buff, len, fi_mr_desc(prp->mr), 0,
 			addr, prp->rkey, NULL);
 	if (ret) {
-		ERR("!fi_write failed");
-		return (int)ret;
+		ERR("!fi_write");
+		goto err_read_event;
 	}
 
-	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, -1);
+	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, prp->cq_timeout);
 	if (ret != 1) {
-		struct fi_cq_err_entry err;
-		fi_cq_readerr(lanep->cq, &err, 0);
-		ERR("write fi_cq_sread: %ld %s", ret,
-			fi_cq_strerror(lanep->cq, err.prov_errno,
-				err.err_data, NULL, 0));
-		return (int)ret;
+		err_str = "write";
+		goto err_fi_cq_sread;
 	}
 
 	lanep->tx_persist.addr = addr;
@@ -595,35 +603,27 @@ pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
 	ret = fi_recv(lanep->ep, &lanep->rx_persist, sizeof (lanep->rx_persist),
 			fi_mr_desc(lanep->rx_mr), 0, NULL);
 	if (ret) {
-		ERR("!fi_send");
-		return (int)ret;
+		ERR("!fi_recv");
+		goto err_read_event;
 	}
 
 	ret = fi_send(lanep->ep, &lanep->tx_persist, sizeof (lanep->tx_persist),
 			fi_mr_desc(lanep->tx_mr), 0, NULL);
 	if (ret) {
 		ERR("!fi_send");
-		return (int)ret;
+		goto err_read_event;
 	}
 
-	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, -1);
+	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, prp->cq_timeout);
 	if (ret != 1) {
-		struct fi_cq_err_entry err;
-		fi_cq_readerr(lanep->cq, &err, 0);
-		ERR("send fi_cq_sread: %ld %s", ret,
-			fi_cq_strerror(lanep->cq, err.prov_errno,
-				err.err_data, NULL, 0));
-		return (int)ret;
+		err_str = "send";
+		goto err_fi_cq_sread;
 	}
 
-	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, -1);
+	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, prp->cq_timeout);
 	if (ret != 1) {
-		struct fi_cq_err_entry err;
-		fi_cq_readerr(lanep->cq, &err, 0);
-		ERR("recv fi_cq_sread: %ld %s", ret,
-			fi_cq_strerror(lanep->cq, err.prov_errno,
-				err.err_data, NULL, 0));
-		return (int)ret;
+		err_str = "recv";
+		goto err_fi_cq_sread;
 	}
 
 	if (lanep->rx_persist.addr != ~addr ||
@@ -633,6 +633,21 @@ pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
 	}
 
 	return 0;
+
+err_fi_cq_sread:
+	if (ret == -FI_EAGAIN)
+		ERR("%s fi_cq_sread: timeout (%i ms)!",
+			err_str, prp->cq_timeout);
+	if (fi_cq_readerr(lanep->cq, &err, 0) > 0)
+		ERR("%s fi_cq_sread: %ld %s", err_str, ret,
+			fi_cq_strerror(lanep->cq, err.prov_errno,
+					err.err_data, NULL, 0));
+
+err_read_event:
+	if (fi_eq_read(prp->eq, &event, &eq_entry, sizeof (eq_entry), 0) > 0)
+		ERR("event occured: %s", pmemra_event_str(event));
+
+	return (int)ret;
 }
 
 int
@@ -652,9 +667,5 @@ pmemra_persist_lane(PMEMrapool *prp, void *buff, size_t len, unsigned lane)
 	uint64_t offset = baddr - laddr;
 	uint64_t addr = prp->raddr + offset;
 
-	int ret = pmemra_fabric_write(prp, buff, len, addr, lane);
-	if (ret)
-		return ret;
-
-	return 0;
+	return pmemra_fabric_write(prp, buff, len, addr, lane);
 }
