@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,6 +41,7 @@
 #define	PMEMRA_PORT		1234
 #define	PMEMRA_MAX_LANES	UINT_MAX
 #define	PMEMRA_DEF_NLANES_MUL	2
+#define	PMEMRA_DEF_CQ_TIMEOUT	1000	/* 1000ms = 1s */
 
 enum pmemra_msg_type {
 	PMEMRA_MSG_OPEN,
