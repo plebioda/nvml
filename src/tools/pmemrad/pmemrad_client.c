@@ -178,7 +178,7 @@ pmemrad_client_fabric_init(struct pmemrad_client *prc)
 	}
 
 	ret = fi_mr_reg(prc->domain, prc->pool->addr, prc->pool->size,
-			FI_REMOTE_READ | FI_REMOTE_WRITE, 0, 0, 0,
+			FI_REMOTE_READ | FI_REMOTE_WRITE | FI_SEND, 0, 0, 0,
 			&prc->mr, NULL);
 	if (ret) {
 		log_err("memory registration failed");
@@ -588,7 +588,7 @@ pmemrad_client_msg_create(struct pmemrad_client *prc,
 		goto out_send_resp;
 	}
 
-	log_info("map request from %s for %s",
+	log_info("create request from %s for %s",
 		inet_ntoa(prc->sock_addr.sin_addr),
 		&msg->data[data_ptr]);
 
@@ -696,7 +696,7 @@ pmemrad_client_msg_remove(struct pmemrad_client *prc,
 		goto out_send_resp;
 	}
 
-	log_info("map request from %s for %s",
+	log_info("open request from %s for %s",
 		inet_ntoa(prc->sock_addr.sin_addr),
 		&msg->data[data_ptr]);
 

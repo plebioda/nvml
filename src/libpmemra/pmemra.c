@@ -253,7 +253,7 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 		goto err_fi_mr_reg_rx;
 	}
 
-	ret = fi_mr_reg(prp->domain, &lanep->rd_buff,
+	ret = fi_mr_reg(prp->domain, lanep->rd_buff,
 			lanep->rd_size, FI_RECV, 0, 0, 0,
 			&lanep->rd_mr, NULL);
 	if (ret) {
@@ -766,7 +766,6 @@ pmemra_read(PMEMrapool *prp, void *buff, size_t len, size_t offset)
 		size_t rd_len = len > lanep->rd_size ? lanep->rd_size : len;
 		lanep->tx_persist.addr = prp->raddr + offset;
 		lanep->tx_persist.len = rd_len | PMEMRA_READ;
-
 
 		ret = fi_recv(lanep->ep, lanep->rd_buff, rd_len,
 				fi_mr_desc(lanep->rd_mr), 0, NULL);
