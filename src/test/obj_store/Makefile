@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015, Intel Corporation
+# Copyright (c) 2015-2016, Intel Corporation
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -42,6 +42,7 @@ OBJS = obj_store.o obj_store_mocks.o libpmemobj.o obj.o redo.o pmalloc.o\
 	out.o util.o set.o
 
 LIBPMEM=y
+LIBPMEMRA=y
 
 include ../Makefile.inc
 
