@@ -489,6 +489,8 @@ pmemra_remove(const char *hostname, const char *poolset_name)
 		goto err_msg_recv;
 	}
 
+	errno = (int)resp.status;
+
 	free(msg);
 	free(prp->poolset_name);
 	free(prp);
@@ -580,6 +582,7 @@ pmemra_create(const char *hostname, const char *poolset_name,
 		resp.port, resp.rkey, resp.nlanes);
 
 	if (resp.status != PMEMRA_ERR_SUCCESS) {
+		errno = (int)resp.status;
 		goto err_resp;
 	}
 
@@ -692,6 +695,7 @@ pmemra_open(const char *hostname, const char *poolset_name,
 		resp.port, resp.rkey, resp.nlanes);
 
 	if (resp.status != PMEMRA_ERR_SUCCESS) {
+		errno = (int)resp.status;
 		goto err_resp;
 	}
 

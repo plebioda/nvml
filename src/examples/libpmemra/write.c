@@ -82,7 +82,7 @@ main(int argc, char *argv[])
 				sizeof (buff), &attr);
 	}
 	if (!prp) {
-		perror("pmemra_map");
+		perror("pmemra_open/create");
 		return -1;
 	}
 

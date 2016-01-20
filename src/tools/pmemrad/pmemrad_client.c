@@ -463,10 +463,7 @@ pmemrad_client_msg_open(struct pmemrad_client *prc,
 
 	prc->pool = pmemrad_pdb_open(prc->pdb, &msg->data[data_ptr]);
 	if (!prc->pool) {
-		if (errno == EBUSY)
-			resp.status = PMEMRA_ERR_BUSY;
-		else if (errno == EINVAL)
-			resp.status = PMEMRA_ERR_INVAL;
+		resp.status = (uint32_t)errno;
 		goto out_send_resp;
 	}
 
@@ -595,10 +592,7 @@ pmemrad_client_msg_create(struct pmemrad_client *prc,
 	prc->pool = pmemrad_pdb_create(prc->pdb, &msg->data[data_ptr],
 			&msg->pool_attr);
 	if (!prc->pool) {
-		if (errno == EBUSY)
-			resp.status = PMEMRA_ERR_BUSY;
-		else if (errno == EINVAL)
-			resp.status = PMEMRA_ERR_INVAL;
+		resp.status = (uint32_t)errno;
 		goto out_send_resp;
 	}
 
@@ -679,7 +673,7 @@ pmemrad_client_msg_remove(struct pmemrad_client *prc,
 	struct pmemra_msg_remove_resp resp = {
 		.hdr = {
 			.type = PMEMRA_MSG_REMOVE_RESP,
-			.size = sizeof (struct pmemra_msg_open_resp),
+			.size = sizeof (struct pmemra_msg_remove_resp),
 		},
 		.status = PMEMRA_ERR_SUCCESS,
 	};
@@ -702,10 +696,7 @@ pmemrad_client_msg_remove(struct pmemrad_client *prc,
 
 	ret = pmemrad_pdb_remove(prc->pdb, &msg->data[data_ptr]);
 	if (ret) {
-		if (errno == EBUSY)
-			resp.status = PMEMRA_ERR_BUSY;
-		else if (errno == EINVAL)
-			resp.status = PMEMRA_ERR_INVAL;
+		resp.status = (uint32_t)errno;
 		goto out_send_resp;
 	}
 
