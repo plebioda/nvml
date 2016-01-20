@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015, Intel Corporation
+# Copyright (c) 2015-2016, Intel Corporation
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -41,6 +41,7 @@ OBJS = obj_pmalloc_mt.o pmalloc.o bucket.o redo.o heap.o lane.o ctree.o\
     util.o set.o out.o obj.o cuckoo.o list.o sync.o tx.o libpmemobj.o
 
 LIBPMEM=y
+LIBPMEMRA=y
 
 out.o: CFLAGS += -DSRCVERSION=\"utversion\"
 

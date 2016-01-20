@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2015, Intel Corporation
+# Copyright (c) 2014-2016, Intel Corporation
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -73,6 +73,7 @@ custom_build = $(DEBUG)$(OBJDIR)
 libvmmalloc libvmem: jemalloc
 tools: libpmem libpmemblk libpmemlog
 libpmemblk libpmemlog libpmemobj: libpmem
+libpmemobj: libpmemra
 
 %-install: %
 	$(MAKE) -C $* install
