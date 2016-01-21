@@ -635,17 +635,16 @@ pmemra_open(const char *hostname, const char *poolset_name,
 		return NULL;
 	}
 
+	struct pmemra_attr def_attr;
+	pmemra_default_attr(&def_attr);
+
 	if (!attr) {
-		struct pmemra_attr def_attr;
-		pmemra_default_attr(&def_attr);
 		prp->nlanes = def_attr.nlanes;
 		prp->cq_timeout = def_attr.cq_timeout;
 	} else {
-		prp->nlanes = attr->nlanes;
-		if (attr->cq_timeout > 0)
-			prp->cq_timeout = attr->cq_timeout;
-		else
-			prp->cq_timeout = PMEMRA_DEF_CQ_TIMEOUT;
+		prp->nlanes = attr->nlanes ? attr->nlanes : def_attr.nlanes;
+		prp->cq_timeout = attr->cq_timeout ? attr->cq_timeout :
+					def_attr.cq_timeout;
 	}
 
 	prp->addr = addr;
