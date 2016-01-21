@@ -210,13 +210,13 @@ util_poolset_free(struct pool_set *set)
 
 	for (unsigned r = 0; r < set->nreplicas; r++) {
 		struct pool_replica *rep = set->replica[r];
-		if (rep->remote)
-			Free(rep->remote);
 		for (unsigned p = 0; p < rep->nparts; p++) {
 			Free((void *)(rep->part[p].path));
 		}
 		Free(set->replica[r]);
 	}
+	if (set->remote)
+		Free(set->remote);
 
 	Free(set);
 }
@@ -494,29 +494,21 @@ util_parse_add_replica(struct pool_set **setp)
 static int
 util_parse_add_remote_replica(struct pool_set **setp, char *address, char *path)
 {
-	LOG(3, "setp %p address %s path %s", setp, address, path);
+	LOG(3, "setp %p address '%s' path '%s'", setp, address, path);
 
 	ASSERTne(setp, NULL);
 	ASSERTne(address, NULL);
 	ASSERTne(path, NULL);
 
-	int ret = util_parse_add_replica(setp);
-	if (ret != 0)
-		return ret;
-
 	struct pool_set *set = *setp;
-	struct pool_replica *rep = set->replica[set->nreplicas - 1];
-	ASSERTne(rep, NULL);
 
-	rep->nparts = 0; /* it is a remote replica */
-
-	rep->remote = Malloc(sizeof (struct remote_replica));
-	if (rep->remote == NULL) {
+	set->remote = Malloc(sizeof (struct remote_replica));
+	if (set->remote == NULL) {
 		ERR("!Malloc");
 		return -1;
 	}
-	rep->remote->address = address;
-	rep->remote->path = path;
+	set->remote->target = address;
+	set->remote->path = path;
 
 	return 0;
 }
@@ -728,6 +720,7 @@ util_poolset_single(const char *path, size_t filesize, int fd, int create)
 	rep->repsize = rep->part[0].filesize & ~(Pagesize - 1);
 
 	set->nreplicas = 1;
+	set->remote = NULL;
 
 	return set;
 }
@@ -1328,7 +1321,7 @@ static int
 util_replica_open(struct pool_set *set, unsigned repidx, int flags,
 	size_t hdrsize)
 {
-	LOG(3, "set %p repidx %u flags %d hdrsize %zu\n",
+	LOG(3, "set %p repidx %u flags %d hdrsize %zu",
 		set, repidx, flags, hdrsize);
 
 	struct pool_replica *rep = set->replica[repidx];
