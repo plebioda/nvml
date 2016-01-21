@@ -215,8 +215,11 @@ util_poolset_free(struct pool_set *set)
 		}
 		Free(set->replica[r]);
 	}
-	if (set->remote)
+	if (set->remote) {
+		Free(set->remote->target);
+		Free(set->remote->path);
 		Free(set->remote);
+	}
 
 	Free(set);
 }
@@ -405,12 +408,17 @@ parser_read_line(char *line, size_t *size, char **path)
 static enum parser_codes
 parser_read_replica(char *line, char **address, char **path)
 {
-	parser_get_next_token(&line); /* 'REPLICA' keyword */
-	*address = parser_get_next_token(&line);
-	*path = parser_get_next_token(&line);
+	char *address_str, *path_str;
 
-	if (!(*address) || !(*path))
+	parser_get_next_token(&line); /* 'REPLICA' keyword */
+	address_str = parser_get_next_token(&line);
+	path_str = parser_get_next_token(&line);
+
+	if (!address_str || !path_str)
 		return PARSER_TARGET_PATH_EXPECTED;
+
+	*address = Strdup(address_str);
+	*path = Strdup(path_str);
 
 	LOG(10, "address '%s' path '%s'", *address, *path);
 
