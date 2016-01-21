@@ -577,7 +577,7 @@ pmemra_create(const char *hostname, const char *poolset_name,
 		goto err_msg_recv;
 	}
 
-	printf("status %s port %d rkey 0x%jx nlanes %d\n",
+	LOG(1, "status %s port %d rkey 0x%jx nlanes %d",
 		pmemra_err_str(resp.status),
 		resp.port, resp.rkey, resp.nlanes);
 
@@ -603,7 +603,7 @@ pmemra_create(const char *hostname, const char *poolset_name,
 		goto err_fabric_init;
 	}
 
-	LOG(1, "connected\n");
+	LOG(1, "connected");
 	free(msg);
 	return prp;
 err_fabric_init:
@@ -626,6 +626,9 @@ PMEMrapool *
 pmemra_open(const char *hostname, const char *poolset_name,
 	void *addr, size_t size, struct pmemra_attr *attr)
 {
+	LOG(3, "hostname %s poolset %s addr %p size %zu",
+		hostname, poolset_name, addr, size);
+
 	PMEMrapool *prp = calloc(1, sizeof (*prp));
 	if (!prp) {
 		ERR("!cannot allocate context");
@@ -690,7 +693,7 @@ pmemra_open(const char *hostname, const char *poolset_name,
 		goto err_msg_recv;
 	}
 
-	printf("status %s port %d rkey 0x%jx nlanes %d\n",
+	LOG(1, "status %s port %d rkey 0x%jx nlanes %d",
 		pmemra_err_str(resp.status),
 		resp.port, resp.rkey, resp.nlanes);
 
@@ -715,7 +718,7 @@ pmemra_open(const char *hostname, const char *poolset_name,
 		goto err_fabric_init;
 	}
 
-	LOG(1, "connected\n");
+	LOG(1, "connected");
 	free(msg);
 	return prp;
 err_fabric_init:
@@ -737,6 +740,8 @@ err_poolset_name:
 void
 pmemra_close(PMEMrapool *prp)
 {
+	LOG(3, "prp %p", prp);
+
 	struct pmemra_msg_hdr msg = {
 		.type = PMEMRA_MSG_CLOSE,
 		.size = sizeof (struct pmemra_msg_hdr),
@@ -755,6 +760,8 @@ pmemra_close(PMEMrapool *prp)
 ssize_t
 pmemra_read(PMEMrapool *prp, void *buff, size_t len, size_t offset)
 {
+	LOG(3, "prp %p buff %p len %zu offset %zu", prp, buff, len, offset);
+
 	if (Lane == UINT_MAX)
 		Lane = __sync_fetch_and_add(&Lane_cur, 1) % prp->nlanes;
 
@@ -823,6 +830,8 @@ err_read_event:
 int
 pmemra_persist(PMEMrapool *prp, void *buff, size_t len)
 {
+	LOG(3, "prp %p buff %p len %zu", prp, buff, len);
+
 	if (Lane == UINT_MAX)
 		Lane = __sync_fetch_and_add(&Lane_cur, 1) % prp->nlanes;
 
@@ -910,6 +919,8 @@ err_read_event:
 int
 pmemra_persist_lane(PMEMrapool *prp, void *buff, size_t len, unsigned lane)
 {
+	LOG(3, "prp %p buff %p len %zu lane %u", prp, buff, len, lane);
+
 	if (lane >= prp->nlanes)
 		return -1;
 
