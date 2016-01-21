@@ -79,6 +79,7 @@ struct pmemra {
 	char *host_name;
 	void *addr;
 	size_t size;
+	int raw;
 	uint64_t rkey;
 	uint64_t raddr;
 	struct sockaddr_in fabric_addr;
@@ -393,7 +394,9 @@ pmemra_fabric_init(PMEMrapool *prp, unsigned short port)
 		goto err_fi_domain;
 	}
 
-	ret = fi_mr_reg(prp->domain, prp->addr, prp->size, FI_WRITE,
+	/* XXX should be FI_READ instead of FI_REMOTE_WRITE ? */
+	ret = fi_mr_reg(prp->domain, prp->addr, prp->size,
+			FI_REMOTE_WRITE | FI_WRITE,
 			0, 0, 0, &prp->mr, NULL);
 	if (ret) {
 		ERR("cannot register memory");
@@ -580,9 +583,9 @@ pmemra_create(const char *hostname, const char *poolset_name,
 		goto err_msg_recv;
 	}
 
-	LOG(1, "status %s port %d rkey 0x%jx nlanes %d",
+	LOG(1, "status %s port %d rkey 0x%jx nlanes %d raw %d",
 		pmemra_err_str(resp.status),
-		resp.port, resp.rkey, resp.nlanes);
+		resp.port, resp.rkey, resp.nlanes, resp.raw);
 
 	if (resp.status != PMEMRA_ERR_SUCCESS) {
 		errno = (int)resp.status;
@@ -593,6 +596,7 @@ pmemra_create(const char *hostname, const char *poolset_name,
 	prp->nlanes = resp.nlanes;
 	prp->rkey = resp.rkey;
 	prp->raddr = resp.addr;
+	prp->raw = resp.raw;
 
 	prp->lanes = calloc(prp->nlanes, sizeof (*prp->lanes));
 	if (!prp->lanes) {
@@ -695,9 +699,9 @@ pmemra_open(const char *hostname, const char *poolset_name,
 		goto err_msg_recv;
 	}
 
-	LOG(1, "status %s port %d rkey 0x%jx nlanes %d",
+	LOG(1, "status %s port %d rkey 0x%jx nlanes %d raw %d",
 		pmemra_err_str(resp.status),
-		resp.port, resp.rkey, resp.nlanes);
+		resp.port, resp.rkey, resp.nlanes, resp.raw);
 
 	if (resp.status != PMEMRA_ERR_SUCCESS) {
 		errno = (int)resp.status;
@@ -707,6 +711,7 @@ pmemra_open(const char *hostname, const char *poolset_name,
 	prp->nlanes = resp.nlanes;
 	prp->rkey = resp.rkey;
 	prp->raddr = resp.addr;
+	prp->raw = resp.raw;
 
 	prp->lanes = calloc(prp->nlanes, sizeof (*prp->lanes));
 	if (!prp->lanes) {
@@ -841,29 +846,58 @@ pmemra_persist(PMEMrapool *prp, void *buff, size_t len)
 }
 
 static int
-pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
-	uint64_t addr, unsigned lane)
+pmemra_fabric_persist_raw(PMEMrapool *prp, void *buff, size_t len,
+	uint64_t addr, struct pmemra_lane *lanep)
 {
 	struct fi_cq_entry comp;
 	ssize_t ret;
-	struct pmemra_lane *lanep = &prp->lanes[lane];
 	struct fi_cq_err_entry err;
 	const char *err_str;
 	struct fi_eq_entry eq_entry;
 	uint32_t event;
 
-	ret = fi_write(lanep->ep, buff, len, fi_mr_desc(prp->mr), 0,
+	ret = fi_read(lanep->ep, buff, 1, fi_mr_desc(prp->mr), 0,
 			addr, prp->rkey, NULL);
 	if (ret) {
-		ERR("!fi_write");
+		ERR("!fi_read");
 		goto err_read_event;
 	}
 
 	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, prp->cq_timeout);
 	if (ret != 1) {
-		err_str = "write";
+		err_str = "read";
 		goto err_fi_cq_sread;
 	}
+
+
+	return 0;
+
+err_fi_cq_sread:
+	if (ret == -FI_EAGAIN)
+		ERR("%s fi_cq_sread: timeout (%i ms)!",
+			err_str, prp->cq_timeout);
+	if (fi_cq_readerr(lanep->cq, &err, 0) > 0)
+		ERR("%s fi_cq_sread: %ld %s", err_str, ret,
+			fi_cq_strerror(lanep->cq, err.prov_errno,
+					err.err_data, NULL, 0));
+
+err_read_event:
+	if (fi_eq_read(prp->eq, &event, &eq_entry, sizeof (eq_entry), 0) > 0)
+		ERR("event occured: %s", pmemra_event_str(event));
+
+	return (int)ret;
+}
+
+static int
+pmemra_fabric_persist_saw(PMEMrapool *prp, void *buff, size_t len,
+	uint64_t addr, struct pmemra_lane *lanep)
+{
+	struct fi_cq_entry comp;
+	ssize_t ret;
+	struct fi_cq_err_entry err;
+	const char *err_str;
+	struct fi_eq_entry eq_entry;
+	uint32_t event;
 
 	lanep->tx_persist.addr = addr;
 	lanep->tx_persist.len = len;
@@ -901,6 +935,51 @@ pmemra_fabric_write(PMEMrapool *prp, const void *buff, size_t len,
 	}
 
 	return 0;
+err_fi_cq_sread:
+	if (ret == -FI_EAGAIN)
+		ERR("%s fi_cq_sread: timeout (%i ms)!",
+			err_str, prp->cq_timeout);
+	if (fi_cq_readerr(lanep->cq, &err, 0) > 0)
+		ERR("%s fi_cq_sread: %ld %s", err_str, ret,
+			fi_cq_strerror(lanep->cq, err.prov_errno,
+					err.err_data, NULL, 0));
+
+err_read_event:
+	if (fi_eq_read(prp->eq, &event, &eq_entry, sizeof (eq_entry), 0) > 0)
+		ERR("event occured: %s", pmemra_event_str(event));
+
+	return (int)ret;
+}
+
+static int
+pmemra_fabric_write(PMEMrapool *prp, void *buff, size_t len,
+	uint64_t addr, unsigned lane)
+{
+	struct fi_cq_entry comp;
+	ssize_t ret;
+	struct pmemra_lane *lanep = &prp->lanes[lane];
+	struct fi_cq_err_entry err;
+	const char *err_str;
+	struct fi_eq_entry eq_entry;
+	uint32_t event;
+
+	ret = fi_write(lanep->ep, buff, len, fi_mr_desc(prp->mr), 0,
+			addr, prp->rkey, NULL);
+	if (ret) {
+		ERR("!fi_write");
+		goto err_read_event;
+	}
+
+	ret = fi_cq_sread(lanep->cq, &comp, 1, NULL, prp->cq_timeout);
+	if (ret != 1) {
+		err_str = "write";
+		goto err_fi_cq_sread;
+	}
+
+
+	return prp->raw ?
+		pmemra_fabric_persist_raw(prp, buff, len, addr, lanep):
+		pmemra_fabric_persist_saw(prp, buff, len, addr, lanep);
 
 err_fi_cq_sread:
 	if (ret == -FI_EAGAIN)

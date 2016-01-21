@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -183,7 +183,7 @@ pmemrad_start(struct pmemrad *prd, int *runp)
 			continue;
 		}
 		entry->client = pmemrad_client_create(client_fd,
-				&client_addr, prd->pdb);
+				&client_addr, prd->pdb, prd->opts.raw);
 		if (!entry->client) {
 			free(entry);
 			/* XXX */

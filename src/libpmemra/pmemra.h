@@ -107,6 +107,7 @@ struct pmemra_msg_open_resp {
 	uint64_t addr;
 	uint64_t size;
 	uint32_t nlanes;
+	int raw;
 	struct pmemra_pool_attr pool_attr;
 };
 

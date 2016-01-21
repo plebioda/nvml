@@ -70,6 +70,7 @@ struct pmemrad_client {
 	struct pmemrad_pdb *pdb;
 	pthread_t thread;
 	int run;
+	int raw;
 	const struct pmemrad_pool *pool;
 	uint64_t rkey;
 	unsigned nlanes;
@@ -438,6 +439,7 @@ pmemrad_client_msg_open(struct pmemrad_client *prc,
 		.rkey = 0,
 		.port = 0,
 		.nlanes = 0,
+		.raw = prc->raw,
 	};
 
 	size_t data_ptr  = 0;
@@ -566,6 +568,7 @@ pmemrad_client_msg_create(struct pmemrad_client *prc,
 		.rkey = 0,
 		.port = 0,
 		.nlanes = 0,
+		.raw = prc->raw,
 	};
 
 	size_t data_ptr  = 0;
@@ -918,7 +921,7 @@ pmemrad_client_thread(void *arg)
 
 struct pmemrad_client *
 pmemrad_client_create(int sockfd, struct sockaddr_in *addr,
-	struct pmemrad_pdb *pdb)
+	struct pmemrad_pdb *pdb, int raw)
 {
 	struct pmemrad_client *prc = calloc(1, sizeof (*prc));
 	if (!prc) {
@@ -929,6 +932,7 @@ pmemrad_client_create(int sockfd, struct sockaddr_in *addr,
 	prc->run = 1;
 	prc->sockfd = sockfd;
 	prc->pdb = pdb;
+	prc->raw = raw;
 	memcpy(&prc->sock_addr, addr, sizeof (prc->sock_addr));
 
 	int ret;

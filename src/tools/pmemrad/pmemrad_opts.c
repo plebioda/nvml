@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,13 +47,14 @@ pmemrad_opts_default(struct pmemrad_opts *opts)
 	opts->foreground = 0;
 	opts->port = PMEMRA_PORT;
 	opts->dir = ".";
+	opts->raw = 0;
 }
 
 int
 pmemrad_opts_parse(int argc, char *argv[], struct pmemrad_opts *opts)
 {
 	int opt;
-	while ((opt = getopt(argc, argv, "p:d:")) != -1) {
+	while ((opt = getopt(argc, argv, "p:d:r")) != -1) {
 		switch (opt) {
 		case 'p':
 			opts->port = atoi(optarg);
@@ -61,6 +62,11 @@ pmemrad_opts_parse(int argc, char *argv[], struct pmemrad_opts *opts)
 		case 'd':
 			opts->dir = optarg;
 			break;
+		case 'r':
+			opts->raw = 1;
+			break;
+		default:
+			return -1;
 		}
 	}
 	return 0;

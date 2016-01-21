@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -42,7 +42,7 @@ struct pmemrad_client;
 
 struct pmemrad_client *
 pmemrad_client_create(int sockfd, struct sockaddr_in *addr,
-		struct pmemrad_pdb *pdb);
+		struct pmemrad_pdb *pdb, int raw);
 int pmemrad_client_is_running(struct pmemrad_client *prc);
 void pmemrad_client_stop(struct pmemrad_client *prc);
 void pmemrad_client_destroy(struct pmemrad_client *prc);

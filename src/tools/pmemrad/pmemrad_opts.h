@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,11 +33,13 @@
 /*
  * pmemrad_opts.h -- XXX
  */
+#include <stdint.h>
 
 struct pmemrad_opts {
 	bool foreground;
 	int port;
 	char *dir;
+	int raw;
 };
 
 void pmemrad_opts_default(struct pmemrad_opts *opts);
