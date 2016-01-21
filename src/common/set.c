@@ -406,21 +406,21 @@ parser_read_line(char *line, size_t *size, char **path)
  *                      from a pool set file
  */
 static enum parser_codes
-parser_read_replica(char *line, char **address, char **path)
+parser_read_replica(char *line, char **target, char **path)
 {
-	char *address_str, *path_str;
+	char *target_str, *path_str;
 
 	parser_get_next_token(&line); /* 'REPLICA' keyword */
-	address_str = parser_get_next_token(&line);
+	target_str = parser_get_next_token(&line);
 	path_str = parser_get_next_token(&line);
 
-	if (!address_str || !path_str)
+	if (!target_str || !path_str)
 		return PARSER_TARGET_PATH_EXPECTED;
 
-	*address = Strdup(address_str);
+	*target = Strdup(target_str);
 	*path = Strdup(path_str);
 
-	LOG(10, "address '%s' path '%s'", *address, *path);
+	LOG(10, "target '%s' path '%s'", *target, *path);
 
 	return PARSER_CONTINUE;
 }
@@ -500,12 +500,12 @@ util_parse_add_replica(struct pool_set **setp)
  *                                  to the pool set info
  */
 static int
-util_parse_add_remote_replica(struct pool_set **setp, char *address, char *path)
+util_parse_add_remote_replica(struct pool_set **setp, char *target, char *path)
 {
-	LOG(3, "setp %p address '%s' path '%s'", setp, address, path);
+	LOG(3, "setp %p target '%s' path '%s'", setp, target, path);
 
 	ASSERTne(setp, NULL);
-	ASSERTne(address, NULL);
+	ASSERTne(target, NULL);
 	ASSERTne(path, NULL);
 
 	struct pool_set *set = *setp;
@@ -515,7 +515,7 @@ util_parse_add_remote_replica(struct pool_set **setp, char *address, char *path)
 		ERR("!Malloc");
 		return -1;
 	}
-	set->remote->target = address;
+	set->remote->target = target;
 	set->remote->path = path;
 
 	return 0;
@@ -539,7 +539,7 @@ util_poolset_parse(const char *path, int fd, struct pool_set **setp)
 	char line[PARSER_MAX_LINE];
 	char *s;
 	char *ppath;
-	char *address;
+	char *target;
 	char *cp;
 	size_t psize;
 	FILE *fs;
@@ -627,14 +627,14 @@ util_poolset_parse(const char *path, int fd, struct pool_set **setp)
 					continue;
 				}
 				/* remote REPLICA ? */
-				result = parser_read_replica(line, &address,
+				result = parser_read_replica(line, &target,
 									&ppath);
 				if (result == PARSER_CONTINUE) {
 					/* remote REPLICA */
-					LOG(10, "REMOTE REPLICA address %s "
-						"path %s", address, ppath);
+					LOG(10, "REMOTE REPLICA target %s "
+						"path %s", target, ppath);
 					if (util_parse_add_remote_replica(&set,
-								address, ppath))
+								target, ppath))
 						goto err;
 				}
 			} else if (nparts >= 1) {
