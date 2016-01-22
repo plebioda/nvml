@@ -513,6 +513,9 @@ PMEMrapool *
 pmemra_create(const char *hostname, const char *poolset_name,
 		void *addr, size_t size, struct pmemra_attr *attr)
 {
+	LOG(3, "hostname %s poolset %s addr %p size %zu",
+		hostname, poolset_name, addr, size);
+
 	if (!attr) {
 		errno = EFAULT;
 		return NULL;
