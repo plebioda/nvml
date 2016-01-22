@@ -177,7 +177,7 @@ struct pool_set_part {
 };
 
 struct remote_replica {
-	char *address;
+	char *target;
 	char *path;
 };
 
@@ -185,10 +185,6 @@ struct pool_replica {
 	unsigned nparts;
 	size_t repsize;		/* total size of all the parts (mappings) */
 	int is_pmem;		/* true if all the parts are in PMEM */
-
-	/* remote replica - temporary solution */
-	struct remote_replica *remote;
-
 	struct pool_set_part part[];
 };
 
@@ -198,6 +194,10 @@ struct pool_set {
 	int rdonly;
 	int zeroed;		/* true if all the parts are new files */
 	size_t poolsize;	/* the smallest replica size */
+
+	/* one remote replica - temporary solution XXX */
+	struct remote_replica *remote;
+
 	struct pool_replica *replica[];
 };
 

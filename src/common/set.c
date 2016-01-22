@@ -210,12 +210,15 @@ util_poolset_free(struct pool_set *set)
 
 	for (unsigned r = 0; r < set->nreplicas; r++) {
 		struct pool_replica *rep = set->replica[r];
-		if (rep->remote)
-			Free(rep->remote);
 		for (unsigned p = 0; p < rep->nparts; p++) {
 			Free((void *)(rep->part[p].path));
 		}
 		Free(set->replica[r]);
+	}
+	if (set->remote) {
+		Free(set->remote->target);
+		Free(set->remote->path);
+		Free(set->remote);
 	}
 
 	Free(set);
@@ -403,16 +406,21 @@ parser_read_line(char *line, size_t *size, char **path)
  *                      from a pool set file
  */
 static enum parser_codes
-parser_read_replica(char *line, char **address, char **path)
+parser_read_replica(char *line, char **target, char **path)
 {
-	parser_get_next_token(&line); /* 'REPLICA' keyword */
-	*address = parser_get_next_token(&line);
-	*path = parser_get_next_token(&line);
+	char *target_str, *path_str;
 
-	if (!(*address) || !(*path))
+	parser_get_next_token(&line); /* 'REPLICA' keyword */
+	target_str = parser_get_next_token(&line);
+	path_str = parser_get_next_token(&line);
+
+	if (!target_str || !path_str)
 		return PARSER_TARGET_PATH_EXPECTED;
 
-	LOG(10, "address '%s' path '%s'", *address, *path);
+	*target = Strdup(target_str);
+	*path = Strdup(path_str);
+
+	LOG(10, "target '%s' path '%s'", *target, *path);
 
 	return PARSER_CONTINUE;
 }
@@ -492,31 +500,23 @@ util_parse_add_replica(struct pool_set **setp)
  *                                  to the pool set info
  */
 static int
-util_parse_add_remote_replica(struct pool_set **setp, char *address, char *path)
+util_parse_add_remote_replica(struct pool_set **setp, char *target, char *path)
 {
-	LOG(3, "setp %p address %s path %s", setp, address, path);
+	LOG(3, "setp %p target '%s' path '%s'", setp, target, path);
 
 	ASSERTne(setp, NULL);
-	ASSERTne(address, NULL);
+	ASSERTne(target, NULL);
 	ASSERTne(path, NULL);
 
-	int ret = util_parse_add_replica(setp);
-	if (ret != 0)
-		return ret;
-
 	struct pool_set *set = *setp;
-	struct pool_replica *rep = set->replica[set->nreplicas - 1];
-	ASSERTne(rep, NULL);
 
-	rep->nparts = 0; /* it is a remote replica */
-
-	rep->remote = Malloc(sizeof (struct remote_replica));
-	if (rep->remote == NULL) {
+	set->remote = Malloc(sizeof (struct remote_replica));
+	if (set->remote == NULL) {
 		ERR("!Malloc");
 		return -1;
 	}
-	rep->remote->address = address;
-	rep->remote->path = path;
+	set->remote->target = target;
+	set->remote->path = path;
 
 	return 0;
 }
@@ -539,7 +539,7 @@ util_poolset_parse(const char *path, int fd, struct pool_set **setp)
 	char line[PARSER_MAX_LINE];
 	char *s;
 	char *ppath;
-	char *address;
+	char *target;
 	char *cp;
 	size_t psize;
 	FILE *fs;
@@ -627,14 +627,14 @@ util_poolset_parse(const char *path, int fd, struct pool_set **setp)
 					continue;
 				}
 				/* remote REPLICA ? */
-				result = parser_read_replica(line, &address,
+				result = parser_read_replica(line, &target,
 									&ppath);
 				if (result == PARSER_CONTINUE) {
 					/* remote REPLICA */
-					LOG(10, "REMOTE REPLICA address %s "
-						"path %s", address, ppath);
+					LOG(10, "REMOTE REPLICA target %s "
+						"path %s", target, ppath);
 					if (util_parse_add_remote_replica(&set,
-								address, ppath))
+								target, ppath))
 						goto err;
 				}
 			} else if (nparts >= 1) {
@@ -728,6 +728,7 @@ util_poolset_single(const char *path, size_t filesize, int fd, int create)
 	rep->repsize = rep->part[0].filesize & ~(Pagesize - 1);
 
 	set->nreplicas = 1;
+	set->remote = NULL;
 
 	return set;
 }
@@ -1328,7 +1329,7 @@ static int
 util_replica_open(struct pool_set *set, unsigned repidx, int flags,
 	size_t hdrsize)
 {
-	LOG(3, "set %p repidx %u flags %d hdrsize %zu\n",
+	LOG(3, "set %p repidx %u flags %d hdrsize %zu",
 		set, repidx, flags, hdrsize);
 
 	struct pool_replica *rep = set->replica[repidx];

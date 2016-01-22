@@ -97,6 +97,7 @@ STATIC_NONDEBUG_LIBS += $(LIBSDIR_NONDEBUG)/libpmemlog.a
 endif
 
 ifeq ($(LIBPMEMOBJ), y)
+LIBPMEMRA=y
 DYNAMIC_LIBS += -lpmemobj
 STATIC_DEBUG_LIBS += $(LIBSDIR_DEBUG)/libpmemobj.a
 STATIC_NONDEBUG_LIBS += $(LIBSDIR_NONDEBUG)/libpmemobj.a
@@ -137,6 +138,7 @@ OBJS += pmemblk_priv.o
 endif
 
 ifeq ($(LIBPMEMRA),y)
+LIBS += -lfabric
 DYNAMIC_LIBS += -lpmemra
 STATIC_DEBUG_LIBS += $(LIBSDIR)/debug/libpmemra.a
 STATIC_NONDEBUG_LIBS += $(LIBSDIR)/nondebug/libpmemra.a
