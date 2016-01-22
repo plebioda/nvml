@@ -218,7 +218,10 @@ obj_rep_memcpy_persist(PMEMobjpool *pop, void *dest, const void *src,
 		rep->memcpy_persist_local(rdest, src, len);
 		rep = rep->replica;
 	}
-	return pop->memcpy_persist_local(dest, src, len);
+	void *ret = pop->memcpy_persist_local(dest, src, len);
+	if (pop->prp)
+		pmemra_persist(pop->prp, dest, len);
+	return ret;
 }
 
 /*
@@ -235,7 +238,10 @@ obj_rep_memset_persist(PMEMobjpool *pop, void *dest, int c, size_t len)
 		rep->memset_persist_local(rdest, c, len);
 		rep = rep->replica;
 	}
-	return pop->memset_persist_local(dest, c, len);
+	void *ret = pop->memset_persist_local(dest, c, len);
+	if (pop->prp)
+		pmemra_persist(pop->prp, dest, len);
+	return ret;
 }
 
 /*
@@ -253,6 +259,8 @@ obj_rep_persist(PMEMobjpool *pop, void *addr, size_t len)
 		rep = rep->replica;
 	}
 	pop->persist_local(addr, len);
+	if (pop->prp)
+		pmemra_persist(pop->prp, addr, len);
 }
 
 /*
@@ -271,6 +279,8 @@ obj_rep_flush(PMEMobjpool *pop, void *addr, size_t len)
 		rep = rep->replica;
 	}
 	pop->flush_local(addr, len);
+	if (pop->prp)
+		pmemra_persist(pop->prp, addr, len);
 }
 
 /*
@@ -631,7 +641,7 @@ pmemobj_runtime_init(PMEMobjpool *pop, int rdonly, int boot)
 {
 	LOG(3, "pop %p rdonly %d boot %d", pop, rdonly, boot);
 
-	if (pop->replica != NULL) {
+	if (pop->replica != NULL || pop->prp != NULL) {
 		/* switch to functions that replicate data */
 		pop->persist = obj_rep_persist;
 		pop->flush = obj_rep_flush;
@@ -746,6 +756,22 @@ pmemobj_create(const char *path, const char *layout, size_t poolsize,
 
 	pop = set->replica[0]->part[0].addr;
 	pop->is_master_replica = 1;
+
+	struct pmemra_attr attr;
+	memset(&attr, 0, sizeof (attr));
+
+	if (set->remote) {
+		strncpy(attr.pool_attr.signature, "PMEMOBJ",
+			POOL_HDR_SIG_LEN);
+		pop->prp = pmemra_create(set->remote->target,
+					set->remote->path,
+					pop, pop->size, &attr);
+		if (pop->prp == NULL) {
+			ERR("cannot create remote replica!");
+			goto err;
+		}
+		LOG(1, "remote replica created");
+	}
 
 	for (unsigned r = 1; r < set->nreplicas; r++) {
 		PMEMobjpool *rep = set->replica[r]->part[0].addr;
@@ -899,6 +925,17 @@ pmemobj_open_common(const char *path, const char *layout, int cow, int boot)
 	pop = set->replica[0]->part[0].addr;
 	pop->is_master_replica = 1;
 
+	if (set->remote) {
+		pop->prp = pmemra_open(set->remote->target,
+					set->remote->path,
+					pop, pop->size, NULL);
+		if (pop->prp == NULL) {
+			ERR("cannot open remote replica!");
+			goto err;
+		}
+		LOG(1, "remote replica opened");
+	}
+
 	for (unsigned r = 1; r < set->nreplicas; r++) {
 		PMEMobjpool *rep = set->replica[r]->part[0].addr;
 		rep->is_master_replica = 0;
@@ -978,6 +1015,9 @@ void
 pmemobj_close(PMEMobjpool *pop)
 {
 	LOG(3, "pop %p", pop);
+
+	if (pop->prp)
+		pmemra_close(pop->prp);
 
 	_pobj_cache_invalidate++;
 
