@@ -218,7 +218,10 @@ obj_rep_memcpy_persist(PMEMobjpool *pop, void *dest, const void *src,
 		rep->memcpy_persist_local(rdest, src, len);
 		rep = rep->replica;
 	}
-	return pop->memcpy_persist_local(dest, src, len);
+	void *ret = pop->memcpy_persist_local(dest, src, len);
+	if (pop->prp)
+		pmemra_persist(pop->prp, dest, len);
+	return ret;
 }
 
 /*
@@ -235,7 +238,10 @@ obj_rep_memset_persist(PMEMobjpool *pop, void *dest, int c, size_t len)
 		rep->memset_persist_local(rdest, c, len);
 		rep = rep->replica;
 	}
-	return pop->memset_persist_local(dest, c, len);
+	void *ret = pop->memset_persist_local(dest, c, len);
+	if (pop->prp)
+		pmemra_persist(pop->prp, dest, len);
+	return ret;
 }
 
 /*
@@ -253,6 +259,8 @@ obj_rep_persist(PMEMobjpool *pop, void *addr, size_t len)
 		rep = rep->replica;
 	}
 	pop->persist_local(addr, len);
+	if (pop->prp)
+		pmemra_persist(pop->prp, addr, len);
 }
 
 /*
@@ -271,6 +279,8 @@ obj_rep_flush(PMEMobjpool *pop, void *addr, size_t len)
 		rep = rep->replica;
 	}
 	pop->flush_local(addr, len);
+	if (pop->prp)
+		pmemra_persist(pop->prp, addr, len);
 }
 
 /*
@@ -490,7 +500,7 @@ pmemobj_descr_create(PMEMobjpool *pop, const char *layout, size_t poolsize)
 
 	/* initialize run_id, it will be incremented later */
 	pop->run_id = 0;
-	pmem_msync(&pop->run_id, sizeof (pop->run_id));
+	pop->persist(pop, &pop->run_id, sizeof (pop->run_id));
 
 	pop->lanes_offset = OBJ_LANES_OFFSET;
 	pop->nlanes = OBJ_NLANES;
@@ -501,7 +511,7 @@ pmemobj_descr_create(PMEMobjpool *pop, const char *layout, size_t poolsize)
 
 	memset(lanes_layout, 0,
 		pop->nlanes * sizeof (struct lane_layout));
-	pmem_msync(lanes_layout, pop->nlanes *
+	pop->persist(pop, lanes_layout, pop->nlanes *
 		sizeof (struct lane_layout));
 
 	/* initialization of the obj_store */
@@ -512,7 +522,7 @@ pmemobj_descr_create(PMEMobjpool *pop, const char *layout, size_t poolsize)
 		/* + 1 - for root object */
 	void *store = (void *)((uintptr_t)pop + pop->obj_store_offset);
 	memset(store, 0, pop->obj_store_size);
-	pmem_msync(store, pop->obj_store_size);
+	pop->persist(pop, store, pop->obj_store_size);
 
 	pop->heap_offset = pop->obj_store_offset + pop->obj_store_size;
 	pop->heap_offset = (pop->heap_offset + Pagesize - 1) & ~(Pagesize - 1);
@@ -527,7 +537,7 @@ pmemobj_descr_create(PMEMobjpool *pop, const char *layout, size_t poolsize)
 	util_checksum(dscp, OBJ_DSC_P_SIZE, &pop->checksum, 1);
 
 	/* store the persistent part of pool's descriptor (2kB) */
-	pmem_msync(dscp, OBJ_DSC_P_SIZE);
+	pop->persist(pop, dscp, OBJ_DSC_P_SIZE);
 
 	return 0;
 }
@@ -631,7 +641,7 @@ pmemobj_runtime_init(PMEMobjpool *pop, int rdonly, int boot)
 {
 	LOG(3, "pop %p rdonly %d boot %d", pop, rdonly, boot);
 
-	if (pop->replica != NULL) {
+	if (pop->replica != NULL || pop->prp != NULL) {
 		/* switch to functions that replicate data */
 		pop->persist = obj_rep_persist;
 		pop->flush = obj_rep_flush;
@@ -727,15 +737,36 @@ pmemobj_create(const char *path, const char *layout, size_t poolsize,
 		pop->addr = pop;
 		pop->size = rep->repsize;
 
-		/* create pool descriptor */
-		if (pmemobj_descr_create(pop, layout, set->poolsize) != 0) {
-			LOG(2, "descriptor creation failed");
-			goto err;
-		}
-
 		/* initialize replica runtime - is_pmem, funcs, ... */
 		if (pmemobj_replica_init(pop, rep->is_pmem) != 0) {
 			ERR("pool initialization failed");
+			goto err;
+		}
+
+		if (r == (set->nreplicas - 1) && set->remote != NULL) {
+			struct pmemra_attr attr;
+			memset(&attr, 0, sizeof (attr));
+
+			strncpy(attr.pool_attr.signature, "PMEMOBJ",
+				POOL_HDR_SIG_LEN);
+			pop->prp = pmemra_create(set->remote->target,
+						set->remote->path,
+						pop, pop->size, &attr);
+			if (pop->prp == NULL) {
+				ERR("cannot create remote replica!");
+				goto err;
+			}
+			LOG(1, "remote replica created");
+			pop->persist = obj_rep_persist;
+			pop->flush = obj_rep_flush;
+			pop->drain = obj_rep_drain;
+			pop->memcpy_persist = obj_rep_memcpy_persist;
+			pop->memset_persist = obj_rep_memset_persist;
+		}
+
+		/* create pool descriptor */
+		if (pmemobj_descr_create(pop, layout, set->poolsize) != 0) {
+			LOG(2, "descriptor creation failed");
 			goto err;
 		}
 
@@ -899,6 +930,17 @@ pmemobj_open_common(const char *path, const char *layout, int cow, int boot)
 	pop = set->replica[0]->part[0].addr;
 	pop->is_master_replica = 1;
 
+	if (set->remote) {
+		pop->prp = pmemra_open(set->remote->target,
+					set->remote->path,
+					pop, pop->size, NULL);
+		if (pop->prp == NULL) {
+			ERR("cannot open remote replica!");
+			goto err;
+		}
+		LOG(1, "remote replica opened");
+	}
+
 	for (unsigned r = 1; r < set->nreplicas; r++) {
 		PMEMobjpool *rep = set->replica[r]->part[0].addr;
 		rep->is_master_replica = 0;
@@ -978,6 +1020,9 @@ void
 pmemobj_close(PMEMobjpool *pop)
 {
 	LOG(3, "pop %p", pop);
+
+	if (pop->prp)
+		pmemra_close(pop->prp);
 
 	_pobj_cache_invalidate++;
 
