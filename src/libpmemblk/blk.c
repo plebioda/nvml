@@ -420,7 +420,7 @@ pmemblk_create(const char *path, size_t bsize, size_t poolsize,
 			roundup(sizeof (struct pmemblk), Pagesize),
 			BLK_HDR_SIG, BLK_FORMAT_MAJOR,
 			BLK_FORMAT_COMPAT, BLK_FORMAT_INCOMPAT,
-			BLK_FORMAT_RO_COMPAT) != 0) {
+			BLK_FORMAT_RO_COMPAT, NULL) != 0) {
 		LOG(2, "cannot create pool or pool set");
 		return NULL;
 	}
