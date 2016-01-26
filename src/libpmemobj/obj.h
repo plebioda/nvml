@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, Intel Corporation
+ * Copyright (c) 2014-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,6 +35,7 @@
  */
 
 #include <stddef.h>
+#include "libpmemra.h"
 
 #define	PMEMOBJ_LOG_PREFIX "libpmemobj"
 #define	PMEMOBJ_LOG_LEVEL_VAR "PMEMOBJ_LOG_LEVEL"
@@ -146,6 +147,9 @@ struct pmemobjpool {
 	struct object_store *store; /* object store */
 	uint64_t uuid_lo;
 
+	/* remote replica */
+	PMEMrapool *prp;	/* metadata of remote replica */
+
 	struct pmemobjpool *replica;	/* next replica */
 
 	/* per-replica functions: pmem or non-pmem */
@@ -164,7 +168,7 @@ struct pmemobjpool {
 
 	PMEMmutex rootlock;	/* root object lock */
 	int is_master_replica;
-	char unused2[1816];
+	char unused2[1808];
 };
 
 struct oob_header_data {

@@ -585,9 +585,10 @@ pmemrad_client_msg_create(struct pmemrad_client *prc,
 		goto out_send_resp;
 	}
 
-	log_info("create request from %s for %s",
+	log_info("create request from %s for %s\n"
+		"create: mem_size %lu nlanes %u",
 		inet_ntoa(prc->sock_addr.sin_addr),
-		&msg->data[data_ptr]);
+		&msg->data[data_ptr], msg->mem_size, msg->nlanes);
 
 	prc->pool = pmemrad_pdb_create(prc->pdb, &msg->data[data_ptr],
 			&msg->pool_attr);

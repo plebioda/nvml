@@ -1269,7 +1269,8 @@ util_replica_close(struct pool_set *set, unsigned repidx)
 int
 util_pool_create(struct pool_set **setp, const char *path, size_t poolsize,
 	size_t minsize, size_t hdrsize, const char *sig,
-	uint32_t major, uint32_t compat, uint32_t incompat, uint32_t ro_compat)
+	uint32_t major, uint32_t compat, uint32_t incompat, uint32_t ro_compat,
+	unsigned char *uuid)
 {
 	LOG(3, "setp %p path %s poolsize %zu minsize %zu "
 		"hdrsize %zu sig %.8s major %u "
@@ -1292,8 +1293,13 @@ util_pool_create(struct pool_set **setp, const char *path, size_t poolsize,
 	set->zeroed = 1;
 	set->poolsize = SIZE_MAX;
 
-	/* generate pool set UUID */
-	uuid_generate(set->uuid);
+	if (uuid == NULL) {
+		/* generate pool set UUID */
+		uuid_generate(set->uuid);
+	} else {
+		/* copy the given pool set UUID */
+		memcpy(set->uuid, uuid, POOL_HDR_UUID_LEN);
+	}
 
 	/* generate UUID's for all the parts */
 	for (unsigned r = 0; r < set->nreplicas; r++) {

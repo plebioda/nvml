@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Intel Corporation
+ * Copyright (c) 2015-2016, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -175,7 +175,7 @@ main(int argc, char *argv[])
 		switch (argv[1][0]) {
 		case 'c':
 			ret = util_pool_create(&set, fname, 0, minsize, hdrsize,
-				SIG, 1, 0, 0, 0);
+				SIG, 1, 0, 0, 0, NULL);
 			if (ret == -1)
 				OUT("!%s: util_pool_create", fname);
 			else {
