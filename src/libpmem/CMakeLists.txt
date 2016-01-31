@@ -1,0 +1,7 @@
+set(pmem_SOURCE libpmem.c pmem.c ../common/util.c ../common/out.c)
+set(pmem_HEADERS ../include/libpmem.h)
+set(pmem_VERSION_MAJOR 1)
+set(pmem_VERSION_MINOR 0)
+set(pmem_VERSION_PATCH 0)
+set(pmem_CFLAGS "-DNO_LIBPTHREAD")
+LIBRARY(pmem)

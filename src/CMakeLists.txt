@@ -1,0 +1,5 @@
+INCLUDE(common.cmake)
+INCLUDE(library.cmake)
+include_directories(include)
+add_subdirectory(libpmem)
+add_subdirectory(libpmemobj)
