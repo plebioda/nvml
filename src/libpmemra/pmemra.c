@@ -609,7 +609,7 @@ pmemra_create(const char *hostname, const char *poolset_name,
 
 	ret = pmemra_fabric_init(prp, (unsigned short)resp.port);
 	if (ret) {
-		ERR("fabric init");
+		ERR("cannot init fabric");
 		goto err_fabric_init;
 	}
 
@@ -724,7 +724,7 @@ pmemra_open(const char *hostname, const char *poolset_name,
 
 	ret = pmemra_fabric_init(prp, (unsigned short)resp.port);
 	if (ret) {
-		ERR("fabric init");
+		ERR("cannot init fabric");
 		goto err_fabric_init;
 	}
 
