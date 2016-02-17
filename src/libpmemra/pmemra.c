@@ -287,10 +287,13 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 		goto err_fi_connect;
 	}
 
-	ssize_t rret = fi_eq_sread(prp->eq, &event, &entry,
-				sizeof (entry), -1, 0);
-	if ((size_t)rret != sizeof (entry)) {
-		ERR("cannot eq sread ");
+	ret = (int)fi_eq_sread(prp->eq, &event, &entry, sizeof (entry), -1, 0);
+	if (ret != sizeof (entry)) {
+		if (ret < 0)
+			ERR("fi_eq_sread() error: %s",
+				fi_eq_strerror(prp->eq, ret, NULL, NULL, 0));
+		else
+			ERR("cannot eq sread");
 		goto err_fi_eq_sread;
 	}
 
