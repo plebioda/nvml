@@ -56,6 +56,8 @@
 #include "pmemra.h"
 #include "out.h"
 
+#define	MAX_CQ_SIZE 2
+
 unsigned __thread Lane = UINT_MAX;
 unsigned Lane_cur = 0;
 
@@ -210,7 +212,7 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 	uint32_t event;
 	struct pmemra_lane *lanep = &prp->lanes[lane];
 	struct fi_cq_attr cq_attr = {
-		.size = 0,
+		.size = MAX_CQ_SIZE,
 		.flags = 0,
 		.format = FI_CQ_FORMAT_CONTEXT,
 		.wait_obj = FI_WAIT_UNSPEC,
