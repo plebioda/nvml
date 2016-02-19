@@ -228,7 +228,7 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 
 	ret = fi_cq_open(prp->domain, &cq_attr, &lanep->cq, NULL);
 	if (ret) {
-		ERR("cannot open cq");
+		ERR("cannot open cq: %i", ret);
 		goto err_fi_cq_open;
 	}
 
@@ -961,7 +961,6 @@ pmemra_fabric_write(PMEMrapool *prp, void *buff, size_t len,
 	struct fi_cq_entry comp;
 	ssize_t ret;
 	struct pmemra_lane *lanep = &prp->lanes[lane];
-	struct fi_cq_err_entry err;
 	const char *err_str;
 	struct fi_eq_entry eq_entry;
 	uint32_t event;
@@ -986,12 +985,11 @@ pmemra_fabric_write(PMEMrapool *prp, void *buff, size_t len,
 
 err_fi_cq_sread:
 	if (ret == -FI_EAGAIN)
-		ERR("%s fi_cq_sread: timeout (%i ms)!",
+		ERR("fi_cq_sread error (after %s): timeout (%i ms)!",
 			err_str, prp->cq_timeout);
-	if (fi_cq_readerr(lanep->cq, &err, 0) > 0)
-		ERR("%s fi_cq_sread: %ld %s", err_str, ret,
-			fi_cq_strerror(lanep->cq, err.prov_errno,
-					err.err_data, NULL, 0));
+	else
+		ERR("fi_cq_sread error (after %s): %i %s", err_str, (int)ret,
+			fi_cq_strerror(lanep->cq, (int)ret, NULL, NULL, 0));
 
 err_read_event:
 	if (fi_eq_read(prp->eq, &event, &eq_entry, sizeof (eq_entry), 0) > 0)
