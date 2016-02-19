@@ -209,8 +209,10 @@ pmemra_fabric_init_lane(PMEMrapool *prp, size_t lane)
 	struct fi_eq_cm_entry entry;
 	uint32_t event;
 	struct pmemra_lane *lanep = &prp->lanes[lane];
+	size_t cq_size = prp->fi->tx_attr->size < prp->fi->rx_attr->size ?
+			 prp->fi->tx_attr->size : prp->fi->rx_attr->size;
 	struct fi_cq_attr cq_attr = {
-		.size = 0,
+		.size = cq_size,
 		.flags = 0,
 		.format = FI_CQ_FORMAT_CONTEXT,
 		.wait_obj = FI_WAIT_UNSPEC,
