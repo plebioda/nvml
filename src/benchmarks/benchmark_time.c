@@ -39,8 +39,6 @@
 #include <stdio.h>
 #include "benchmark_time.h"
 
-#define NSECPSEC	1000000000
-
 /*
  * benchmark_time_get -- get timestamp from clock source
  */

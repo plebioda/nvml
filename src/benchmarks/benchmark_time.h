@@ -34,6 +34,8 @@
  */
 #include <time.h>
 
+#define NSECPSEC	1000000000
+
 typedef struct timespec benchmark_time_t;
 
 void benchmark_time_get(benchmark_time_t *time);
