@@ -200,6 +200,7 @@ struct worker_info
 	unsigned index;			/* index of worker thread */
 	struct operation_info *opinfo;	/* operation info structure */
 	size_t nops;			/* number of operations */
+	benchmark_time_t t_diff;	/* time of all operations */
 	void *priv;			/* worker's private data */
 };
 
@@ -211,7 +212,6 @@ struct operation_info
 	struct worker_info *worker;	/* worker's info */
 	struct benchmark_args *args;	/* benchmark arguments */
 	unsigned index;			/* operation's index */
-	benchmark_time_t t_diff;	/* timestamp of start */
 };
 
 /*
