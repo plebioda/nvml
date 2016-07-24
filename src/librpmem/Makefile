@@ -46,7 +46,7 @@ SOURCE = $(COMMON)/util.c\
 	rpmem_obc.c\
 	base64.c\
 	rpmem_cmd.c\
-	rpmem_ssh.c\
+	rpmem_libssh2.c\
 	rpmem_common.c\
 	rpmem_util.c\
 	rpmem_fip_common.c\
@@ -60,7 +60,9 @@ include ../Makefile.inc
 
 ifeq ($(BUILD_RPMEM),y)
 LIBS += $(shell $(PKG_CONFIG) --libs libfabric)
+LIBS += $(shell $(PKG_CONFIG) --libs libssh2)
 CFLAGS += $(shell $(PKG_CONFIG) --cflags libfabric)
+CFLAGS += $(shell $(PKG_CONFIG) --cflags libssh2)
 CFLAGS += -I. -I../rpmem_common
 CFLAGS += -DRPMEMC_LOG_RPMEM
 endif

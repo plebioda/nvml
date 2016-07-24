@@ -31,86 +31,100 @@
  */
 
 /*
- * librpmem.c -- entry points for librpmem
+ * rpmem_libssh.c -- rpmem ssh transport layer source file
  */
 
+#include <unistd.h>
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include <stdint.h>
-#if HAS_LIBSSH2
-#include <libssh2.h>
-#endif
 
-#include "librpmem.h"
-
-#include "rpmem.h"
 #include "util.h"
 #include "out.h"
-#include "base64.h"
+#include "rpmem_ssh.h"
+#include "rpmem_common.h"
+#include "rpmem_util.h"
+
+
+struct rpmem_ssh {
+	char *node;		/* target node */
+	char *service;		/* target node service */
+};
 
 /*
- * librpmem_init -- load-time initialization for librpmem
- *
- * Called automatically by the run-time loader.
+ * get_cmd -- return command name
  */
-ATTR_CONSTRUCTOR
-void
-librpmem_init(void)
+static const char *
+get_cmd(void)
 {
-	util_init();
-	out_init(RPMEM_LOG_PREFIX, RPMEM_LOG_LEVEL_VAR, RPMEM_LOG_FILE_VAR,
-			RPMEM_MAJOR_VERSION, RPMEM_MINOR_VERSION);
-	LOG(3, NULL);
-	base64_init();
-#if HAS_LIBSSH2
-	libssh2_init(0);
-#endif
+	char *cmd = getenv(RPMEM_CMD_ENV);
+	if (!cmd)
+		cmd = RPMEM_DEF_CMD;
+
+	return cmd;
 }
 
 /*
- * librpmem_fini -- librpmem cleanup routine
- *
- * Called automatically when the process terminates.
+ * rpmem_ssh_open -- open ssh connection with specified node
  */
-ATTR_DESTRUCTOR
-void
-librpmem_fini(void)
+struct rpmem_ssh *
+rpmem_ssh_open(const char *node, const char *service)
 {
-	LOG(3, NULL);
-	out_fini();
-#if HAS_LIBSSH2
-	libssh2_exit();
-#endif
-}
-
-/*
- * rpmem_check_version -- see if library meets application version requirements
- */
-const char *
-rpmem_check_version(unsigned major_required, unsigned minor_required)
-{
-	LOG(3, "major_required %u minor_required %u",
-			major_required, minor_required);
-
-	if (major_required != RPMEM_MAJOR_VERSION) {
-		ERR("librpmem major version mismatch (need %u, found %u)",
-			major_required, RPMEM_MAJOR_VERSION);
-		return out_get_errormsg();
-	}
-
-	if (minor_required > RPMEM_MINOR_VERSION) {
-		ERR("librpmem minor version mismatch (need %u, found %u)",
-			minor_required, RPMEM_MINOR_VERSION);
-		return out_get_errormsg();
-	}
-
 	return NULL;
 }
 
 /*
- * rpmem_errormsg -- return the last error message
+ * rpmem_ssh_close -- close ssh connection
+ */
+int
+rpmem_ssh_close(struct rpmem_ssh *rps)
+{
+	return -1;
+}
+
+/*
+ * rpmem_ssh_send -- send data using ssh transport layer
+ *
+ * The data is encoded using base64.
+ */
+int
+rpmem_ssh_send(struct rpmem_ssh *rps, const void *buff, size_t len)
+{
+	return -1;
+}
+
+/*
+ * rpmem_ssh_recv -- receive data using ssh transport layer
+ *
+ * The received data is decoded using base64.
+ */
+int
+rpmem_ssh_recv(struct rpmem_ssh *rps, void *buff, size_t len)
+{
+	return -1;
+}
+
+/*
+ * rpmem_ssh_monitor -- check connection state of ssh
+ *
+ * Return value:
+ * 0  - disconnected
+ * 1  - connected
+ * <0 - error
+ */
+int
+rpmem_ssh_monitor(struct rpmem_ssh *rps, int nonblock)
+{
+	return 0;
+}
+
+/*
+ * rpmem_ssh_strerror -- read error using stderr channel
  */
 const char *
-rpmem_errormsg(void)
+rpmem_ssh_strerror(struct rpmem_ssh *rps)
 {
-	return out_get_errormsg();
+	return "";
 }
