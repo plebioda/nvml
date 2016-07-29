@@ -124,10 +124,19 @@ struct rpmem_resp_attr {
 	enum rpmem_persist_method persist_method;
 };
 
+#define RPMEM_FLAGS_USE_IPV4	0x1
+
+struct rpmem_target_info {
+	char *user;
+	char *node;
+	char *service;
+	unsigned flags;
+};
+
 int rpmem_b64_write(int sockfd, const void *buf, size_t len, int flags);
 int rpmem_b64_read(int sockfd, void *buf, size_t len, int flags);
 const char *rpmem_get_ip_str(const struct sockaddr *addr);
-int rpmem_target_split(const char *target, char **user,
-		char **node, char **service);
+struct rpmem_target_info *rpmem_target_parse(const char *target);
+void rpmem_target_free(struct rpmem_target_info *info);
 int rpmem_xwrite(int fd, const void *buf, size_t len, int flags);
 int rpmem_xread(int fd, void *buf, size_t len, int flags);

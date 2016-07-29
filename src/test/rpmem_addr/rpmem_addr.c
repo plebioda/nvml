@@ -31,17 +31,32 @@
  */
 
 /*
- * rpmem_ssh.h -- rpmem ssh transport layer header file
+ * rpmem_addr.c -- unit test for parsing target address
  */
-#include <stddef.h>
 
-struct rpmem_ssh;
+#include "unittest.h"
 
-struct rpmem_ssh *rpmem_ssh_open(const struct rpmem_target_info *info);
-int rpmem_ssh_close(struct rpmem_ssh *rps);
 
-int rpmem_ssh_send(struct rpmem_ssh *rps, const void *buff, size_t len);
-int rpmem_ssh_recv(struct rpmem_ssh *rps, void *buff, size_t len);
-int rpmem_ssh_monitor(struct rpmem_ssh *rps, int nonblock);
+#include "rpmem_common.h"
 
-const char *rpmem_ssh_strerror(struct rpmem_ssh *rps);
+int
+main(int argc, char *argv[])
+{
+	START(argc, argv, "rpmem_addr");
+
+	struct rpmem_target_info *info;
+
+	for (int i = 1; i < argc; i++) {
+		info = rpmem_target_parse(argv[i]);
+		if (info) {
+			UT_OUT("'%s': '%s' '%s' '%s'", argv[i],
+					info->user ? : "(null)",
+					info->node ? : "(null)",
+					info->service ? : "(null)");
+		} else {
+			UT_OUT("!%s", argv[i]);
+		}
+	}
+
+	DONE(NULL);
+}

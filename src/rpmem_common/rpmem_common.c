@@ -171,10 +171,106 @@ rpmem_get_ip_str(const struct sockaddr *addr)
 }
 
 /*
- * rpmem_target_split -- split target into user, node and service
- *
- * The user, node and service must be freed by the caller.
+ * rpmem_target_parse -- parse target info
  */
+struct rpmem_target_info *
+rpmem_target_parse(const char *target)
+{
+	struct rpmem_target_info *info = calloc(1, sizeof(*info));
+	if (!info)
+		return NULL;
+
+	char *str = strdup(target);
+	if (!str)
+		goto err_strdup;
+
+	char *tmp = strchr(str, '@');
+	if (tmp) {
+		*tmp = '\0';
+		info->user = strdup(str);
+		if (!info->user)
+			goto err_user;
+		tmp++;
+	} else {
+		tmp = str;
+	}
+
+	if (*tmp == '[') {
+		tmp++;
+		/* IPv6 */
+		char *end = strchr(tmp, ']');
+		if (!end) {
+			errno = EINVAL;
+			goto err_ipv6;
+		}
+
+		*end = '\0';
+		info->node = strdup(tmp);
+		if (!info->node)
+			goto err_node;
+		tmp = end + 1;
+
+		end = strchr(tmp, ':');
+		if (end) {
+			*end = '\0';
+			end++;
+			info->service = strdup(end);
+			if (!info->service)
+				goto err_service;
+
+		}
+	} else {
+		char *first = strchr(tmp, ':');
+		char *last = strrchr(tmp, ':');
+		if (first == last) {
+			/* IPv4 - one colon */
+			if (first) {
+				*first = '\0';
+				first++;
+				info->service = strdup(first);
+				if (!info->service)
+					goto err_service;
+			}
+		}
+
+		info->node = strdup(tmp);
+		if (!info->node)
+			goto err_node;
+	}
+
+	if (*info->node == '\0') {
+		errno = EINVAL;
+		goto err_node;
+	}
+
+	free(str);
+
+	return info;
+err_node:
+err_service:
+err_ipv6:
+	free(info->node);
+	free(info->service);
+	free(info->user);
+err_user:
+	free(str);
+err_strdup:
+	free(info);
+	return NULL;
+}
+
+/*
+ * rpmem_target_free -- free target info
+ */
+void
+rpmem_target_free(struct rpmem_target_info *info)
+{
+	free(info->user);
+	free(info->node);
+	free(info->service);
+}
+
+#if 0
 int
 rpmem_target_split(const char *target, char **user,
 	char **node, char **service)
@@ -239,3 +335,4 @@ err_dup_node:
 err_target_dup:
 	return -1;
 }
+#endif
