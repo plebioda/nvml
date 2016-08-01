@@ -151,6 +151,7 @@ rpmem_get_ip_str(const struct sockaddr *addr)
 	static char str[INET6_ADDRSTRLEN + NI_MAXSERV + 1];
 	char ip[INET6_ADDRSTRLEN];
 	struct sockaddr_in *in4;
+	struct sockaddr_in6 *in6;
 
 	switch (addr->sa_family) {
 	case AF_INET:
@@ -162,7 +163,13 @@ rpmem_get_ip_str(const struct sockaddr *addr)
 			return NULL;
 		break;
 	case AF_INET6:
-		/* IPv6 not supported */
+		in6 = (struct sockaddr_in6 *)addr;
+		if (!inet_ntop(AF_INET6, &in6->sin6_addr, ip, sizeof(ip)))
+			return NULL;
+		if (snprintf(str, sizeof(str), "%s:%u",
+				ip, ntohs(in6->sin6_port)) < 0)
+			return NULL;
+		break;
 	default:
 		return NULL;
 	}
