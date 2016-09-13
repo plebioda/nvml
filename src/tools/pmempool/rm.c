@@ -142,8 +142,6 @@ rm_poolset_cb(struct part_file *pf, void *arg)
 		 * XXX add support for remote replicas
 		 */
 		err(1, "removing remote poolset files is not supported yet");
-
-		return -1;
 	} else {
 		const char *part_file = pf->path;
 
