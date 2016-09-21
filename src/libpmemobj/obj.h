@@ -115,6 +115,8 @@ typedef void *(*persist_remote_fn)(PMEMobjpool *pop, const void *addr,
 
 extern unsigned long long Pagesize;
 
+extern object_callback Valgrind_obj_cb;
+
 typedef uint64_t type_num_t;
 
 struct pmemobjpool {
@@ -169,9 +171,11 @@ struct pmemobjpool {
 
 	persist_remote_fn persist_remote; /* remote persist function */
 
+	int vg_boot;
+
 	/* padding to align size of this structure to page boundary */
 	/* sizeof(unused2) == 8192 - offsetof(struct pmemobjpool, unused2) */
-	char unused2[1606];
+	char unused2[1602];
 };
 
 /*
@@ -180,6 +184,9 @@ struct pmemobjpool {
  * functions.
  */
 #define OBJ_INTERNAL_OBJECT_MASK ((1ULL) << 63)
+#define OBJ_ROOT_SIZE(oobh) ((oobh)->size & ~OBJ_INTERNAL_OBJECT_MASK)
+#define OBJ_IS_INTERNAL(oobh) (((oobh)->size & OBJ_INTERNAL_OBJECT_MASK))
+#define OBJ_IS_ROOT(oobh) (OBJ_IS_INTERNAL(oobh) && OBJ_ROOT_SIZE(oobh))
 
 /*
  * Out-Of-Band Header - it is padded to 48B to fit one cache line (64B)
