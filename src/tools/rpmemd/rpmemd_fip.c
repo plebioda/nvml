@@ -43,6 +43,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <sys/param.h>
 
 #include <rdma/fabric.h>
 #include <rdma/fi_domain.h>
@@ -1084,19 +1085,15 @@ rpmemd_fip_fini(struct rpmemd_fip *fip)
 
 /*
  * rpmemd_fip_accept -- accept a single connection request
- *
- * XXX
- *
- * We probably need some timeouts for connection related events.
  */
 int
-rpmemd_fip_accept(struct rpmemd_fip *fip)
+rpmemd_fip_accept(struct rpmemd_fip *fip, int timeout)
 {
 	int ret;
 	struct fi_eq_cm_entry entry;
 
 	ret = rpmem_fip_read_eq(fip->eq, &entry,
-			FI_CONNREQ, &fip->pep->fid, -1);
+			FI_CONNREQ, &fip->pep->fid, timeout);
 	if (ret)
 		goto err_event_connreq;
 

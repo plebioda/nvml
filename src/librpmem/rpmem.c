@@ -240,6 +240,7 @@ err_malloc_rpmem:
 /*
  * rpmem_remove_pool -- remove pool on remote node
  */
+#if 0
 static int
 rpmem_remove_pool(const struct rpmem_target_info *info, const char *pool_set)
 {
@@ -264,12 +265,13 @@ err_monitor:
 
 	return ret;
 }
+#endif
 
 /*
  * rpmem_common_fini -- common routing for deinitialization
  */
 static void
-rpmem_common_fini(RPMEMpool *rpp, int join, const char *pool_set)
+rpmem_common_fini(RPMEMpool *rpp, int join)
 {
 	rpmem_obc_disconnect(rpp->obc);
 
@@ -282,12 +284,6 @@ rpmem_common_fini(RPMEMpool *rpp, int join, const char *pool_set)
 	}
 
 	rpmem_obc_fini(rpp->obc);
-
-	if (pool_set) {
-		if (rpmem_remove_pool(rpp->info, pool_set))
-			RPMEM_LOG(ERR, "removing '%s' pool failed",
-					pool_set);
-	}
 
 	rpmem_target_free(rpp->info);
 	free(rpp);
@@ -482,15 +478,12 @@ rpmem_create(const char *target, const char *pool_set_name,
 		.pool_desc	= pool_set_name,
 	};
 
-	const char *remove_pool_set = NULL;
 	struct rpmem_resp_attr resp;
 	int ret = rpmem_obc_create(rpp->obc, &req, &resp, create_attr);
 	if (ret) {
 		ERR("!create request failed");
 		goto err_obc_create;
 	}
-
-	remove_pool_set = pool_set_name;
 
 	rpmem_log_resp("create", &resp);
 
@@ -510,8 +503,9 @@ rpmem_create(const char *target, const char *pool_set_name,
 err_monitor:
 	rpmem_common_fip_fini(rpp);
 err_fip_init:
+	rpmem_obc_close(rpp->obc);
 err_obc_create:
-	rpmem_common_fini(rpp, 0, remove_pool_set);
+	rpmem_common_fini(rpp, 0);
 err_common_init:
 	return NULL;
 }
@@ -576,8 +570,9 @@ rpmem_open(const char *target, const char *pool_set_name,
 err_monitor:
 	rpmem_common_fip_fini(rpp);
 err_fip_init:
+	rpmem_obc_close(rpp->obc);
 err_obc_create:
-	rpmem_common_fini(rpp, 0, NULL);
+	rpmem_common_fini(rpp, 0);
 err_common_init:
 	return NULL;
 }
@@ -597,7 +592,7 @@ rpmem_close(RPMEMpool *rpp)
 	RPMEM_LOG(NOTICE, "out-of-band connection closed");
 
 	rpmem_common_fip_fini(rpp);
-	rpmem_common_fini(rpp, 1, NULL);
+	rpmem_common_fini(rpp, 1);
 
 	return ret;
 }

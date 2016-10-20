@@ -55,6 +55,8 @@
 #define RPMEM_DEF_SSH	"ssh"
 #define RPMEM_PROV_SOCKET_ENV	"RPMEM_ENABLE_SOCKETS"
 #define RPMEM_PROV_VERBS_ENV	"RPMEM_ENABLE_VERBS"
+#define RPMEM_ACCEPT_TIMEOUT 1000
+#define RPMEM_CLOSE_TIMEOUT 1000
 
 #include <sys/socket.h>
 #include <netdb.h>
