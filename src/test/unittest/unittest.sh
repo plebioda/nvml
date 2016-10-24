@@ -33,7 +33,7 @@
 
 # make sure we have a well defined locale for string operations here
 export LC_ALL="C"
-
+export TM=1
 . ../testconfig.sh
 
 # defaults
@@ -222,7 +222,7 @@ export VALIDATE_VALGRIND_LOG=1
 
 export RPMEM_LOG_LEVEL=3
 export RPMEM_LOG_FILE=rpmem$UNITTEST_NUM.log
-export RPMEMD_LOG_LEVEL=info
+export RPMEMD_LOG_LEVEL=err
 export RPMEMD_LOG_FILE=rpmemd$UNITTEST_NUM.log
 
 export REMOTE_VARS="

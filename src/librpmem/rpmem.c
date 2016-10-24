@@ -361,7 +361,6 @@ rpmem_common_fip_fini(RPMEMpool *rpp)
 {
 	RPMEM_LOG(INFO, "closing in-band connection");
 
-	rpmem_fip_process_stop(rpp->fip);
 	rpmem_fip_close(rpp->fip);
 	rpmem_fip_fini(rpp->fip);
 
@@ -501,6 +500,7 @@ rpmem_create(const char *target, const char *pool_set_name,
 
 	return rpp;
 err_monitor:
+	rpmem_fip_process_stop(rpp->fip);
 	rpmem_common_fip_fini(rpp);
 err_fip_init:
 	rpmem_obc_close(rpp->obc);
@@ -568,6 +568,7 @@ rpmem_open(const char *target, const char *pool_set_name,
 
 	return rpp;
 err_monitor:
+	rpmem_fip_process_stop(rpp->fip);
 	rpmem_common_fip_fini(rpp);
 err_fip_init:
 	rpmem_obc_close(rpp->obc);
@@ -584,6 +585,8 @@ int
 rpmem_close(RPMEMpool *rpp)
 {
 	RPMEM_LOG(INFO, "closing out-of-band connection");
+
+	rpmem_fip_process_stop(rpp->fip);
 
 	int ret = rpmem_obc_close(rpp->obc);
 	if (ret)

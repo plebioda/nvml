@@ -399,9 +399,10 @@ rpmemd_req_cleanup(struct rpmemd *rpmemd)
 	int ret;
 
 	ret = rpmemd_fip_stop(rpmemd);
-
-	rpmemd_fip_close(rpmemd->fip);
-	rpmemd_fip_fini(rpmemd->fip);
+	if (!ret) {
+		rpmemd_fip_close(rpmemd->fip);
+		rpmemd_fip_fini(rpmemd->fip);
+	}
 
 	int remove = rpmemd->created && ret;
 	rpmemd_close_pool(rpmemd, remove);
@@ -602,19 +603,18 @@ rpmemd_req_close(struct rpmemd_obc *obc, void *arg)
 	}
 
 	ret = rpmemd_fip_stop(rpmemd);
-	if (ret)
+	if (ret) {
 		status = RPMEM_ERR_FATAL;
-
-	RPMEMD_LOG(NOTICE, "close request response (status = %u)", status);
-	ret = rpmemd_obc_close_resp(rpmemd->obc, status);
-	if (!ret && !status)
-		rpmemd_fip_wait_close(rpmemd->fip, -1);
-
-	rpmemd_fip_close(rpmemd->fip);
-	rpmemd_fip_fini(rpmemd->fip);
+	} else {
+		rpmemd_fip_close(rpmemd->fip);
+		rpmemd_fip_fini(rpmemd->fip);
+	}
 
 	int remove = rpmemd->created && status;
 	ret = rpmemd_close_pool(rpmemd, remove);
+
+	RPMEMD_LOG(NOTICE, "close request response (status = %u)", status);
+	ret = rpmemd_obc_close_resp(rpmemd->obc, status);
 
 	return ret;
 }
