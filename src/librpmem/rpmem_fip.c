@@ -1215,12 +1215,13 @@ rpmem_fip_close(struct rpmem_fip *fip)
 		RPMEM_FI_ERR(ret, "disconnecting endpoint");
 		lret = ret;
 	}
-
+#if 0
 	struct fi_eq_cm_entry entry;
 	ret = rpmem_fip_read_eq(fip->eq, &entry, FI_SHUTDOWN,
 			&fip->ep->fid, -1);
 	if (ret)
 		lret = ret;
+#endif
 
 	ret = rpmem_fip_fini_ep(fip);
 	if (ret)
