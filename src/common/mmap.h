@@ -48,6 +48,8 @@
 extern int Mmap_no_random;
 extern void *Mmap_hint;
 
+void *util_mmap(void *addr, size_t length, int prot, int flags,
+		                  int fd, off_t offset);
 void *util_map(int fd, size_t len, int cow, size_t req_align);
 int util_unmap(void *addr, size_t len);
 

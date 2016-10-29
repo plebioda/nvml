@@ -40,10 +40,12 @@
 #include <string.h>
 #include <sys/file.h>
 #include <sys/mman.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 
 #include "file.h"
 #include "mmap.h"
+#include "../examples/libpmemobj/pmemobjfs/pmemobjfs.h"
 
 int Mmap_no_random;
 void *Mmap_hint;
@@ -97,8 +99,8 @@ util_map(int fd, size_t len, int cow, size_t req_align)
 		ERR("cannot find a contiguous region of given size");
 		return NULL;
 	}
-
-	if ((base = mmap(addr, len, PROT_READ|PROT_WRITE,
+	
+	if ((base = util_mmap(addr, len, PROT_READ|PROT_WRITE,
 			(cow) ? MAP_PRIVATE|MAP_NORESERVE : MAP_SHARED,
 					fd, 0)) == MAP_FAILED) {
 		ERR("!mmap %zu bytes", len);
@@ -257,4 +259,77 @@ util_range_none(void *addr, size_t len)
 		ERR("!mprotect: PROT_NONE");
 
 	return retval;
+}
+
+void *util_mmap(void *addr, size_t length, int prot, int flags,
+		int fd, off_t offset)
+{
+	int ret;
+
+	char path[PATH_MAX];
+	ret = ioctl(fd, PMEMOBJFS_CTL_PATH, path);
+	if (ret) {
+		LOG(3, "file not from pmemobjfs");
+		return mmap(addr, length, prot, flags, fd, offset);
+	}
+
+	struct statvfs buff;
+	ret = fstatvfs(fd, &buff);
+	if (ret)
+		goto err_statvfs;
+
+	void *a = NULL;
+	LOG(3, "pmemobjfs path %s", path);
+	int pfd = open(path, O_RDWR);
+	if (pfd == -1)
+		goto err_open;
+
+	size_t off = (size_t)offset;
+	ret = ioctl(fd, PMEMOBJFS_CTL_OFF, &off);
+	if (ret)
+		goto err_ctl_off;
+	
+	size_t l = length < buff.f_bsize ? length : buff.f_bsize;
+	size_t ll = length - l;
+	a = mmap(addr, l, prot, flags, pfd, (off_t)off);
+	if (a == MAP_FAILED)
+		goto err_mmap;
+
+	void *ret_addr = a;
+	size_t mapped = l;
+
+	addr = (void*)((uintptr_t)addr + l);
+
+	for (off_t o = offset + (off_t)l;
+		o < offset + (off_t)length; o += (off_t)l) {
+		l = ll < buff.f_bsize ? ll : buff.f_bsize;
+
+		off = (size_t)o;
+		ret = ioctl(fd, PMEMOBJFS_CTL_OFF, &off);
+		if (ret)
+			goto err_ctl_off_next;
+
+		void *tmp = mmap(addr, l, prot, flags | MAP_FIXED,
+				pfd, (off_t)off);
+		if (tmp == MAP_FAILED)
+			goto err_mmap_next;
+
+		addr = (void *)((uintptr_t)tmp + l);
+
+		ll -= l;
+		mapped += l;
+	}
+
+	close(pfd);
+
+	return ret_addr;
+err_mmap_next:
+err_ctl_off_next:
+	munmap(ret_addr, mapped);
+err_mmap:
+err_ctl_off:
+	close(pfd);
+err_open:
+err_statvfs:
+	return MAP_FAILED;
 }

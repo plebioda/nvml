@@ -291,7 +291,7 @@ util_map_hdr(struct pool_set_part *part, int flags)
 	COMPILE_ERROR_ON(POOL_HDR_SIZE == 0);
 	ASSERTeq(POOL_HDR_SIZE % Pagesize, 0);
 
-	void *hdrp = mmap(NULL, POOL_HDR_SIZE,
+	void *hdrp = util_mmap(NULL, POOL_HDR_SIZE,
 		PROT_READ|PROT_WRITE, flags, part->fd, 0);
 
 	if (hdrp == MAP_FAILED) {
@@ -345,7 +345,7 @@ util_map_part(struct pool_set_part *part, void *addr, size_t size,
 	if (!size)
 		size = (part->filesize & ~(Mmap_align - 1)) - offset;
 
-	void *addrp = mmap(addr, size,
+	void *addrp = util_mmap(addr, size,
 		PROT_READ|PROT_WRITE, flags, part->fd, (off_t)offset);
 
 	if (addrp == MAP_FAILED) {

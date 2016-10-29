@@ -43,16 +43,18 @@
 #include <unistd.h>
 #include <libgen.h>
 #include <err.h>
-#include <sys/ioctl.h>
 #include <linux/kdev_t.h>
 
 #include <map.h>
 #include <map_ctree.h>
 
+#include <pmemobjfs.h>
+
 #ifndef PMEMOBJFS_TRACK_BLOCKS
-#define PMEMOBJFS_TRACK_BLOCKS	1
+#define PMEMOBJFS_TRACK_BLOCKS	0
 #endif
 
+const char *fname;
 #if DEBUG
 static FILE *log_fh;
 static uint64_t log_cnt;
@@ -72,13 +74,9 @@ if (log_fh) {\
 #define PMEMOBJFS_TX_BEGIN "pmemobjfs.tx_begin"
 #define PMEMOBJFS_TX_COMMIT "pmemobjfs.tx_commit"
 #define PMEMOBJFS_TX_ABORT  "pmemobjfs.tx_abort"
+#define	PMEMOBJFS_FILE_INFO "pmemobjfs.file_info"
 
 #define PMEMOBJFS_TMP_TEMPLATE	"/.tx_XXXXXX"
-
-#define PMEMOBJFS_CTL		'I'
-#define PMEMOBJFS_CTL_TX_BEGIN	_IO(PMEMOBJFS_CTL, 1)
-#define PMEMOBJFS_CTL_TX_COMMIT	_IO(PMEMOBJFS_CTL, 2)
-#define PMEMOBJFS_CTL_TX_ABORT	_IO(PMEMOBJFS_CTL, 3)
 
 /*
  * struct pmemobjfs -- volatile state of pmemobjfs
@@ -186,7 +184,10 @@ POBJ_LAYOUT_TOID(pmemobjfs, objfs_block_t);
 POBJ_LAYOUT_TOID(pmemobjfs, char);
 POBJ_LAYOUT_END(pmemobjfs);
 
-#define PMEMOBJFS_MIN_BLOCK_SIZE ((size_t)(512 - 64))
+//#define PMEMOBJFS_MIN_BLOCK_SIZE ((size_t)(512 - 64))
+#define PMEMOBJFS_MIN_BLOCK_SIZE ((size_t)(256*1024 - 4096))
+#define	PMEMOBJFS_BLOCK_OFFSET ((size_t)4096)
+#define	BLOCK_ALIGN(off) (((off) & ~(4096 - 1)) + 4096)
 
 /*
  * struct objfs_super -- pmemobjfs super (root) object
@@ -635,6 +636,10 @@ pmemobjfs_file_get_block(struct pmemobjfs *objfs,
 	TOID(objfs_block_t) block;
 	PMEMoid block_oid =
 		map_get(objfs->mapc, D_RO(inode)->file.blocks, GET_KEY(offset));
+	if (OID_IS_NULL(block_oid))
+		return TOID_NULL(objfs_block_t);
+
+	block_oid.off = BLOCK_ALIGN(block_oid.off);
 	TOID_ASSIGN(block, block_oid);
 	return block;
 }
@@ -650,10 +655,11 @@ pmemobjfs_file_get_block_for_write(struct pmemobjfs *objfs,
 		pmemobjfs_file_get_block(objfs, inode, offset);
 	if (TOID_IS_NULL(block)) {
 		TX_BEGIN(objfs->pop) {
-			block = TX_ALLOC(objfs_block_t,
-					objfs->block_size);
+			block = TX_ZALLOC(objfs_block_t,
+					objfs->block_size + 4096);
 			map_insert(objfs->mapc, D_RW(inode)->file.blocks,
 					GET_KEY(offset), block.oid);
+			block.oid.off = BLOCK_ALIGN(block.oid.off);
 		} TX_ONABORT {
 			block = TOID_NULL(objfs_block_t);
 		} TX_END
@@ -1905,44 +1911,79 @@ pmemobjfs_fuse_flush(const char *path, struct fuse_file_info *fi)
 	return 0;
 }
 
+static int
+pmemobjfs_get_file_info(struct pmemobjfs *objfs,
+	struct fuse_file_info *fi, size_t *offset)
+{
+	TOID(struct objfs_inode) inode;
+	inode.oid.off = fi->fh;
+	inode.oid.pool_uuid_lo = objfs->pool_uuid_lo;
+
+	if (!TOID_VALID(inode))
+		return -EINVAL;
+
+	int ret = 0;
+	TX_BEGIN(objfs->pop) {
+		uint64_t block_id = *offset / objfs->block_size;
+		TOID(objfs_block_t) block =
+			pmemobjfs_file_get_block_for_write(objfs,
+					inode, block_id);
+		*offset = block.oid.off;
+	} TX_ONABORT {
+		ret = -1;
+	} TX_END;
+	return ret;
+}
+
 /*
  * pmemobjfs_fuse_ioctl -- (FUSE) ioctl for file
  */
 static int
 pmemobjfs_fuse_ioctl(const char *path, int cmd, void *arg,
-		struct fuse_file_info *fi, unsigned flags, void *data)
+	struct fuse_file_info *fi, unsigned flags, void *data)
 {
 	log("%s cmd %d", path, _IOC_NR(cmd));
 
 	struct pmemobjfs *objfs = PMEMOBJFS;
 
+	int defer = 0;
 	/* check transaction stage */
 	switch (cmd) {
 	case PMEMOBJFS_CTL_TX_BEGIN:
 		if (pmemobj_tx_stage() != TX_STAGE_NONE)
 			return -EINPROGRESS;
+		defer = 1;
 		break;
 	case PMEMOBJFS_CTL_TX_ABORT:
 		if (pmemobj_tx_stage() != TX_STAGE_WORK)
 			return -EBADFD;
+		defer = 1;
 		break;
 	case PMEMOBJFS_CTL_TX_COMMIT:
 		if (pmemobj_tx_stage() != TX_STAGE_WORK)
 			return -EBADFD;
+		defer = 1;
+		break;
+	case PMEMOBJFS_CTL_OFF:
+		return pmemobjfs_get_file_info(objfs, fi, data);
+	case PMEMOBJFS_CTL_PATH:
+		strncpy(data, fname, PATH_MAX); 
 		break;
 	default:
 		return -EINVAL;
 	}
 
-	/*
-	 * Store the inode offset and command and defer ioctl
-	 * execution to releasing the file. This is required
-	 * to avoid unlinking .tx_XXXXXX file inside transaction
-	 * because one would be rolled back if transaction abort
-	 * would occur.
-	 */
-	objfs->ioctl_off = fi->fh;
-	objfs->ioctl_cmd = cmd;
+	if (defer) {
+		/*
+		 * Store the inode offset and command and defer ioctl
+		 * execution to releasing the file. This is required
+		 * to avoid unlinking .tx_XXXXXX file inside transaction
+		 * because one would be rolled back if transaction abort
+		 * would occur.
+		 */
+		objfs->ioctl_off = fi->fh;
+		objfs->ioctl_cmd = cmd;
+	}
 
 	return 0;
 }
@@ -2427,6 +2468,24 @@ main(int argc, char *argv[])
 		}
 		char *arg = argv[1];
 		return pmemobjfs_tx_ioctl(arg, PMEMOBJFS_CTL_TX_ABORT);
+	} else if (strcmp(PMEMOBJFS_FILE_INFO, bname) == 0) {
+		if (argc != 2) {
+			fprintf(stderr, "usage: %s <file>\n", bname);
+			return -1;
+		}
+		char *arg = argv[1];
+		int fd = open(arg, O_RDWR);
+		if (fd == -1)
+			return -1;
+		struct statvfs vfs;
+		if (fstatvfs(fd, &vfs))
+			err(1, "fstatvfs");
+		printf("bsize = %lu\n", vfs.f_bsize);
+		size_t off = 0;
+		ioctl(fd, PMEMOBJFS_CTL_OFF, &off);
+		printf("off = %zu\n", off);
+
+		return 0;
 	}
 #if DEBUG
 	log_fh = fopen("pmemobjfs.log", "w+");
@@ -2437,7 +2496,7 @@ main(int argc, char *argv[])
 #endif
 
 
-	const char *fname = argv[argc - 2];
+	fname = argv[argc - 2];
 	struct pmemobjfs *objfs = calloc(1, sizeof(*objfs));
 	if (!objfs) {
 		perror("malloc");
