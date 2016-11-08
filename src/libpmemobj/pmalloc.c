@@ -288,8 +288,7 @@ pmalloc_boot(PMEMobjpool *pop)
 		return ret;
 
 #ifdef USE_VG_MEMCHECK
-	if (pop->vg_cb)
-		palloc_heap_vg_open(&pop->heap, pop->vg_cb, pop, pop->vg_boot);
+	palloc_heap_vg_open(&pop->heap, pop->vg_cb, pop, pop->vg_boot);
 #endif
 
 	ret = palloc_buckets_init(&pop->heap);

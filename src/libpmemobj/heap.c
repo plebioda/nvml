@@ -2001,6 +2001,45 @@ heap_foreach_object(struct palloc_heap *heap, object_callback cb, void *arg,
 }
 
 #ifdef USE_VG_MEMCHECK
+
+/*
+ * heap_vg_open_chunk -- notifies Valgrind about chunk layout
+ */
+static void
+heap_vg_open_chunk(struct palloc_heap *heap,
+	object_callback cb, void *arg, int objects,
+	struct zone *z, struct chunk_header *hdr, void *chunk)
+{
+	if (hdr->type == CHUNK_TYPE_RUN) {
+		struct chunk_run *run = chunk;
+
+		VALGRIND_DO_MAKE_MEM_NOACCESS(run,
+				sizeof(*run));
+		VALGRIND_DO_MAKE_MEM_DEFINED(run,
+			sizeof(*run) - sizeof(run->data));
+
+		if (objects) {
+			int ret = heap_run_foreach_object(heap,
+				cb, arg, run);
+			ASSERTeq(ret, 0);
+		}
+	} else {
+		void *addr = chunk;
+		size_t size = hdr->size_idx * CHUNKSIZE;
+		VALGRIND_DO_MAKE_MEM_NOACCESS(addr, size);
+
+		struct allocation_header *alloc = addr;
+
+		if (objects && hdr->type == CHUNK_TYPE_USED) {
+			VALGRIND_DO_MAKE_MEM_DEFINED(alloc,
+					sizeof(*alloc));
+			size_t off = PMALLOC_PTR_TO_OFF(heap, alloc);
+			int ret = cb(off, arg);
+			ASSERTeq(ret, 0);
+		}
+	}
+}
+
 /*
  * heap_vg_open -- notifies Valgrind about heap layout
  */
@@ -2033,34 +2072,8 @@ heap_vg_open(struct palloc_heap *heap, object_callback cb,
 
 			VALGRIND_DO_MAKE_MEM_DEFINED(hdr, sizeof(*hdr));
 
-			if (hdr->type == CHUNK_TYPE_RUN) {
-				struct chunk_run *run =
-					(struct chunk_run *)&z->chunks[c];
-
-				VALGRIND_DO_MAKE_MEM_NOACCESS(run,
-						sizeof(*run));
-				VALGRIND_DO_MAKE_MEM_DEFINED(run,
-					sizeof(*run) - sizeof(run->data));
-
-				if (objects) {
-					int ret = heap_run_foreach_object(heap,
-						cb, arg, run);
-					ASSERTeq(ret, 0);
-				}
-			} else {
-				void *addr = &z->chunks[c];
-				size_t size = hdr->size_idx * CHUNKSIZE;
-				VALGRIND_DO_MAKE_MEM_NOACCESS(addr, size);
-
-				struct allocation_header *alloc = addr;
-
-				if (objects && hdr->type == CHUNK_TYPE_USED) {
-					VALGRIND_DO_MAKE_MEM_DEFINED(alloc,
-							sizeof(*alloc));
-					cb(PMALLOC_PTR_TO_OFF(heap, alloc),
-							arg);
-				}
-			}
+			heap_vg_open_chunk(heap, cb, arg, objects, z,
+					hdr, &z->chunks[c]);
 
 			ASSERT(hdr->size_idx > 0);
 
