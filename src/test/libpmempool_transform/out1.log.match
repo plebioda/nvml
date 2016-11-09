@@ -6,8 +6,7 @@ libpmempool_transform/TEST1: START: libpmempool_transform
 libpmempool_transform/TEST1: Done: result: 0, errno: 0
 TestOK111
 TestOK222
-
-Poolset part:
+Part file:
 path                     : $(nW)
 type                     : regular file
 size                     : $(nW)
@@ -19,8 +18,7 @@ Mandatory features       : 0x0
 Not mandatory features   : 0x0
 Forced RO                : 0x0
 Pool set UUID            : $(nW)
-
-Poolset part:
+Part file:
 path                     : $(nW)
 type                     : regular file
 size                     : $(nW)
@@ -32,8 +30,7 @@ Mandatory features       : 0x0
 Not mandatory features   : 0x0
 Forced RO                : 0x0
 Pool set UUID            : $(nW)
-
-Poolset part:
+Part file:
 path                     : $(nW)
 type                     : regular file
 size                     : $(nW)
@@ -45,8 +42,7 @@ Mandatory features       : 0x0
 Not mandatory features   : 0x0
 Forced RO                : 0x0
 Pool set UUID            : $(nW)
-
-Poolset part:
+Part file:
 path                     : $(nW)
 type                     : regular file
 size                     : $(nW)
@@ -58,8 +54,7 @@ Mandatory features       : 0x0
 Not mandatory features   : 0x0
 Forced RO                : 0x0
 Pool set UUID            : $(nW)
-
-Poolset part:
+Part file:
 path                     : $(nW)
 type                     : regular file
 size                     : $(nW)
@@ -71,8 +66,7 @@ Mandatory features       : 0x0
 Not mandatory features   : 0x0
 Forced RO                : 0x0
 Pool set UUID            : $(nW)
-
-Poolset part:
+Part file:
 path                     : $(nW)
 type                     : regular file
 size                     : $(nW)
@@ -84,8 +78,7 @@ Mandatory features       : 0x0
 Not mandatory features   : 0x0
 Forced RO                : 0x0
 Pool set UUID            : $(nW)
-
-Poolset part:
+Part file:
 path                     : $(nW)
 type                     : regular file
 size                     : $(nW)
