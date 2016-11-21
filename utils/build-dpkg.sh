@@ -33,7 +33,7 @@
 #
 # build-dpkg.sh - Script for building deb packages
 #
-
+set -x
 SCRIPT_DIR=$(dirname $0)
 source $SCRIPT_DIR/pkg-common.sh
 
