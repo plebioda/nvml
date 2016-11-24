@@ -860,7 +860,7 @@ pmemobj_replica_init_remote(PMEMobjpool *rep, struct pool_set *set,
 	rep->rpp = repset->remote->rpp;
 
 	/* pop_desc - beginning of the pool's descriptor */
-	rep->remote_base = (uintptr_t)rep->addr + sizeof(struct pool_hdr);
+	rep->remote_base = (uintptr_t)rep->addr;
 
 	/* init hooks */
 	rep->persist_remote = obj_remote_persist;

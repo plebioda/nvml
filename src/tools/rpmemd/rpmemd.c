@@ -180,7 +180,7 @@ rpmemd_check_pool(struct rpmemd *rpmemd, const struct rpmem_req_attr *req,
 		return -1;
 	}
 
-	if (rpmemd->pool->pool_size - POOL_HDR_SIZE < req->pool_size) {
+	if (rpmemd->pool->pool_size < req->pool_size) {
 		RPMEMD_LOG(ERR, "requested size is too big");
 		*status = RPMEM_ERR_BADSIZE;
 		return -1;
@@ -196,8 +196,7 @@ static int
 rpmemd_common_fip_init(struct rpmemd *rpmemd, const struct rpmem_req_attr *req,
 	struct rpmem_resp_attr *resp, int *status)
 {
-	void *addr = (void *)((uintptr_t)rpmemd->pool->pool_addr +
-			POOL_HDR_SIZE);
+	void *addr = (void *)((uintptr_t)rpmemd->pool->pool_addr);
 	struct rpmemd_fip_attr fip_attr = {
 		.addr		= addr,
 		.size		= req->pool_size,
