@@ -1296,6 +1296,15 @@ int
 util_poolset_remote_replica_open(struct pool_set *set, unsigned repidx,
 	size_t minsize, int create, unsigned *nlanes)
 {
+	struct pool_set_part *part = &set->replica[0]->part[0];
+	if (part->is_dax) {
+		int ret = madvise(part->addr, part->filesize, MADV_DONTFORK);
+		if (ret) {
+			ERR("!madvise");
+			return -1;
+		}
+	}
+
 	/*
 	 * The pool header is not visible on the remote node from the local host
 	 * perspective, so we replicate the pool without the pool header.
