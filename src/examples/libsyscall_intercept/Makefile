@@ -40,8 +40,11 @@ include ../../common.inc
 all: icap.so
 
 icap.so: icap.c
-	$(CC) $(CFLAGS) -I../../include -L../../nondebug -lsyscall_intercept \
+	$(CC) $(CFLAGS) -g -I../../include -L../../debug -lsyscall_intercept \
 	-shared -fpic  icap.c -o icap.so
 
 fun:
-	LD_LIBRARY_PATH=../../nondebug LD_PRELOAD=./icap.so cat icap.c 
+	LD_LIBRARY_PATH=../../debug LD_PRELOAD=./icap.so cat icap.c 
+
+debug:
+	LD_LIBRARY_PATH=../../debug LD_PRELOAD=./icap.so LIBC_HOOK_CMDLINE_FILTER=cat gdb --args cat icap.c
