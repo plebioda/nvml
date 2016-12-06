@@ -230,8 +230,6 @@ print_clone_flags(char buffer[static 0x100], long flags)
 		c += sprintf(c, "CLONE_FS | ");
 	if ((flags & CLONE_IO) == CLONE_IO)
 		c += sprintf(c, "CLONE_IO | ");
-	if ((flags & CLONE_NEWCGROUP) == CLONE_NEWCGROUP)
-		c += sprintf(c, "CLONE_NEWCGROUP | ");
 	if ((flags & CLONE_NEWIPC) == CLONE_NEWIPC)
 		c += sprintf(c, "CLONE_NEWIPC | ");
 	if ((flags & CLONE_NEWNET) == CLONE_NEWNET)
