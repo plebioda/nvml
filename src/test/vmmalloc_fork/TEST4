@@ -57,7 +57,7 @@ export TEST_LD_PRELOAD=libvmmalloc.so
 # this test is leaky by design
 export MEMCHECK_DONT_CHECK_LEAKS=1
 
-expect_normal_exit ./vmmalloc_fork$EXESUFFIX e 4 2
+expect_normal_exit strace -f -o vmmalloc_strace${UNITTEST_NUM}.log ./vmmalloc_fork$EXESUFFIX e 4 2
 
 check
 
