@@ -187,7 +187,7 @@ static struct benchmark_clo pmembench_clos[] = {
 						n_threads),
 			.base	= CLO_INT_BASE_DEC,
 			.min	= 1,
-			.max	= 32,
+			.max	= UINT_MAX,
 		},
 	},
 	{
