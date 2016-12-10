@@ -850,21 +850,7 @@ out:
 static int
 remove_remote(const char *node, const char *pool)
 {
-	struct rpmem_target_info *info = rpmem_target_parse(node);
-	if (!info)
-		err(1, "parsing target node -- '%s", node);
-
-	struct rpmem_ssh *ssh = rpmem_ssh_exec(info, "--remove", pool, NULL);
-	if (!ssh)
-		err(1, "rpmem_ssh_exec: remove -- '%s'", pool);
-
-	if (rpmem_ssh_monitor(ssh, 0))
-		err(1, "rpmem_ssh_monitor");
-
-	rpmem_ssh_close(ssh);
-	rpmem_target_free(info);
-
-	return 0;
+	return rpmem_remove(node, pool, RPMEM_REMOVE_FORCE);
 }
 
 /*
