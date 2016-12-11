@@ -92,6 +92,7 @@ struct benchmark_args {
 	unsigned repeats;	  /* number of repeats of one scenario */
 	bool help;		   /* print help for benchmark */
 	void *opts;		   /* benchmark specific arguments */
+	bool affinity;		   /* set pthread_affinity */
 };
 
 /*
