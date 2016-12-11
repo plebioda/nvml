@@ -134,7 +134,7 @@ static struct version_s {
 static struct bench_list benchmarks;
 
 /* common arguments for benchmarks */
-static struct benchmark_clo pmembench_clos[8];
+static struct benchmark_clo pmembench_clos[9];
 
 /* list of arguments for pmembench */
 static struct benchmark_clo pmembench_opts[2];
@@ -248,6 +248,14 @@ pmembench_costructor(void)
 	pmembench_clos[7].type_uint.base = CLO_INT_BASE_DEC | CLO_INT_BASE_HEX;
 	pmembench_clos[7].type_uint.min = 1;
 	pmembench_clos[7].type_uint.max = ULONG_MAX;
+
+	pmembench_clos[8].opt_short = '\0';
+	pmembench_clos[8].opt_long = "affinity";
+	pmembench_clos[8].descr = "Set pthread_affinity";
+	pmembench_clos[8].type = CLO_TYPE_FLAG;
+	pmembench_clos[8].off =
+		clo_field_offset(struct benchmark_args, affinity);
+	pmembench_clos[8].ignore_in_res = false;
 }
 
 /*
@@ -471,8 +479,28 @@ pmembench_init_workers(struct benchmark_worker **workers, size_t nworkers,
 		       struct benchmark_args *args)
 {
 	size_t i;
+	long ret = sysconf(_SC_NPROCESSORS_ONLN);
+	if (ret < 0)
+		return -1;
+	size_t ncpus = (size_t)ret;
 	for (i = 0; i < nworkers; i++) {
 		workers[i] = benchmark_worker_alloc();
+#ifndef WIN32
+		if (args->affinity) {
+			cpu_set_t cpuset;
+			CPU_ZERO(&cpuset);
+			size_t cpu = (((2 * i) % ncpus +
+				       ((i % ncpus) >= (ncpus / 2))));
+			CPU_SET(cpu, &cpuset);
+			errno = pthread_setaffinity_np(
+				workers[i]->thread, sizeof(cpu_set_t), &cpuset);
+			if (errno) {
+				perror("pthread_setaffinity_np");
+				return -1;
+			}
+		}
+#endif
+
 		workers[i]->info.index = i;
 		workers[i]->info.nops = n_ops;
 		workers[i]->info.opinfo = (struct operation_info *)calloc(
