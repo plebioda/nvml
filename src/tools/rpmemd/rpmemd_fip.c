@@ -99,6 +99,7 @@ struct rpmemd_fip_lane {
 	struct rpmem_fip_msg recv;	/* RECV message */
 	struct rpmem_fip_msg send;	/* SEND message */
 	struct rpmemd_fip_worker *worker; /* lane's worker */
+	unsigned id;
 };
 
 /*
@@ -110,9 +111,9 @@ struct rpmemd_fip {
 	struct fid_domain *domain;	/* fabric protection domain */
 	struct fid_eq *eq;		/* event queue */
 	struct fid_pep *pep;		/* passive endpoint - listener */
-	struct fid_ep *ep;		/* active endpoint - connection */
+	struct fid_ep **ep;		/* active endpoint - connection */
 	struct fid_mr *mr;		/* memory region for pool */
-	struct fid_cq *cq;		/* completion queue */
+	struct fid_cq **cq;		/* completion queue */
 	struct rpmemd_fip_ops *ops;	/* ops specific for persist method */
 
 	void (*persist)(const void *addr, size_t len);	/* persist function */
@@ -355,6 +356,16 @@ rpmemd_fip_init_cq(struct rpmemd_fip *fip)
 {
 	int ret = 0;
 
+	fip->cq = malloc(fip->nlanes * sizeof(*fip->cq));
+	if (!fip->cq) {
+		return -1;
+	}
+
+	fip->ep = malloc(fip->nlanes * sizeof(*fip->ep));
+	if (!fip->ep) {
+		return -1;
+	}
+
 	struct fi_cq_attr cq_attr = {
 		.size = fip->cq_size,
 		.flags = 0,
@@ -365,10 +376,12 @@ rpmemd_fip_init_cq(struct rpmemd_fip *fip)
 		.wait_set = NULL,
 	};
 
-	ret = fi_cq_open(fip->domain, &cq_attr, &fip->cq, NULL);
-	if (ret) {
-		RPMEMD_FI_ERR(ret, "opening completion queue");
-		goto err_cq_open;
+	for (size_t i = 0; i < fip->nlanes; i++) {
+		ret = fi_cq_open(fip->domain, &cq_attr, &fip->cq[i], NULL);
+		if (ret) {
+			RPMEMD_FI_ERR(ret, "opening completion queue");
+			goto err_cq_open;
+		}
 	}
 
 	return 0;
@@ -385,9 +398,11 @@ rpmemd_fip_fini_cq(struct rpmemd_fip *fip)
 	int lret = 0;
 	int ret;
 
-	ret = RPMEMD_FI_CLOSE(fip->cq, "closing completion queue");
-	if (ret)
-		lret = ret;
+	for (size_t i = 0; i < fip->nlanes; i++) {
+		ret = RPMEMD_FI_CLOSE(fip->cq[i], "closing completion queue");
+		if (ret)
+			lret = ret;
+	}
 
 	return lret;
 }
@@ -396,19 +411,19 @@ rpmemd_fip_fini_cq(struct rpmemd_fip *fip)
  * rpmemd_fip_init_ep -- initialize active endpoint
  */
 static int
-rpmemd_fip_init_ep(struct rpmemd_fip *fip, struct fi_info *info)
+rpmemd_fip_init_ep(struct rpmemd_fip *fip, struct fi_info *info, size_t lane)
 {
 	int ret;
 
 	/* create an endpoint from fabric interface info */
-	ret = fi_endpoint(fip->domain, info, &fip->ep, NULL);
+	ret = fi_endpoint(fip->domain, info, &fip->ep[lane], NULL);
 	if (ret) {
 		RPMEMD_FI_ERR(ret, "allocating endpoint");
 		goto err_endpoint;
 	}
 
 	/* bind event queue to the endpoint */
-	ret = fi_ep_bind(fip->ep, &fip->eq->fid, 0);
+	ret = fi_ep_bind(fip->ep[lane], &fip->eq->fid, 0);
 	if (ret) {
 		RPMEMD_FI_ERR(ret, "binding event queue to endpoint");
 		goto err_bind_eq;
@@ -420,7 +435,7 @@ rpmemd_fip_init_ep(struct rpmemd_fip *fip, struct fi_info *info)
 	 * requests. Use selective completion implies adding FI_COMPLETE
 	 * flag to each WR which needs a completion.
 	 */
-	ret = fi_ep_bind(fip->ep, &fip->cq->fid,
+	ret = fi_ep_bind(fip->ep[lane], &fip->cq[lane]->fid,
 			FI_RECV | FI_TRANSMIT | FI_SELECTIVE_COMPLETION);
 	if (ret) {
 		RPMEMD_FI_ERR(ret, "binding completion queue to endpoint");
@@ -428,7 +443,7 @@ rpmemd_fip_init_ep(struct rpmemd_fip *fip, struct fi_info *info)
 	}
 
 	/* enable the endpoint */
-	ret = fi_enable(fip->ep);
+	ret = fi_enable(fip->ep[lane]);
 	if (ret) {
 		RPMEMD_FI_ERR(ret, "enabling endpoint");
 		goto err_enable;
@@ -438,7 +453,7 @@ rpmemd_fip_init_ep(struct rpmemd_fip *fip, struct fi_info *info)
 err_enable:
 err_bind_cq:
 err_bind_eq:
-	RPMEMD_FI_CLOSE(fip->ep, "closing endpoint");
+	RPMEMD_FI_CLOSE(fip->ep[lane], "closing endpoint");
 err_endpoint:
 	return -1;
 }
@@ -452,9 +467,11 @@ rpmemd_fip_fini_ep(struct rpmemd_fip *fip)
 	int lret = 0;
 	int ret;
 
-	ret = RPMEMD_FI_CLOSE(fip->ep, "closing endpoint");
-	if (ret)
-		lret = ret;
+	for (size_t i = 0; i < fip->nlanes; i++) {
+		ret = RPMEMD_FI_CLOSE(fip->ep[i], "closing endpoint");
+		if (ret)
+			lret = ret;
+	}
 
 	return lret;
 }
@@ -514,9 +531,9 @@ rpmemd_fip_process_stop_apm(struct rpmemd_fip *fip)
  */
 static inline int
 rpmemd_fip_gpspm_post_msg(struct rpmemd_fip *fip,
-	struct rpmem_fip_msg *msg)
+	struct rpmem_fip_msg *msg, size_t lane)
 {
-	int ret = rpmem_fip_recvmsg(fip->ep, msg);
+	int ret = rpmem_fip_recvmsg(fip->ep[lane], msg);
 	if (ret) {
 		RPMEMD_FI_ERR(ret, "posting GPSPM recv buffer");
 		return ret;
@@ -530,9 +547,9 @@ rpmemd_fip_gpspm_post_msg(struct rpmemd_fip *fip,
  */
 static inline int
 rpmemd_fip_gpspm_post_resp(struct rpmemd_fip *fip,
-	struct rpmem_fip_msg *resp)
+	struct rpmem_fip_msg *resp, size_t lane)
 {
-	int ret = rpmem_fip_sendmsg(fip->ep, resp);
+	int ret = rpmem_fip_sendmsg(fip->ep[lane], resp);
 	if (ret) {
 		RPMEMD_FI_ERR(ret, "posting GPSPM send buffer");
 		return ret;
@@ -551,7 +568,7 @@ rpmemd_fip_post_gpspm(struct rpmemd_fip *fip)
 
 	for (unsigned i = 0; i < fip->nlanes; i++) {
 		struct rpmemd_fip_lane *lanep = &fip->lanes[i];
-		ret = rpmemd_fip_gpspm_post_msg(fip, &lanep->recv);
+		ret = rpmemd_fip_gpspm_post_msg(fip, &lanep->recv, i);
 		if (ret)
 			goto err_post_resp;
 	}
@@ -620,6 +637,7 @@ rpmemd_fip_init_gpspm(struct rpmemd_fip *fip)
 	unsigned i;
 	for (i = 0; i < fip->nlanes; i++) {
 		struct rpmemd_fip_lane *lanep = &fip->lanes[i];
+		lanep->id = i;
 
 		/* initialize basic lane structure */
 		ret = rpmem_fip_lane_init(&lanep->lane);
@@ -763,7 +781,7 @@ rpmemd_fip_worker(void *arg, void *data)
 	fip->persist((void *)pmsg->addr, pmsg->size);
 
 	/* post lane's RECV buffer */
-	ret = rpmemd_fip_gpspm_post_msg(fip, &lanep->recv);
+	ret = rpmemd_fip_gpspm_post_msg(fip, &lanep->recv, lanep->id);
 	if (unlikely(ret))
 		goto err;
 
@@ -771,7 +789,7 @@ rpmemd_fip_worker(void *arg, void *data)
 	rpmem_fip_lane_begin(&lanep->lane, FI_SEND);
 
 	/* post lane's SEND buffer */
-	ret = rpmemd_fip_gpspm_post_resp(fip, &lanep->send);
+	ret = rpmemd_fip_gpspm_post_resp(fip, &lanep->send, lanep->id);
 	if (unlikely(ret))
 		goto err;
 err:
@@ -784,6 +802,8 @@ err:
 static void *
 rpmemd_fip_cq_thread(void *arg)
 {
+	return NULL;
+#if 0
 	struct rpmemd_fip *fip = arg;
 	struct fi_cq_err_entry err;
 	const char *str_err;
@@ -840,6 +860,7 @@ err_cq_read:
 	RPMEMD_LOG(ERR, "error reading from completion queue: %s", str_err);
 err:
 	return (void *)(uintptr_t)ret;
+#endif
 }
 
 /*
@@ -1097,42 +1118,54 @@ int
 rpmemd_fip_accept(struct rpmemd_fip *fip, int timeout)
 {
 	int ret;
+	ssize_t sret;
 	struct fi_eq_cm_entry entry;
-
-	ret = rpmem_fip_read_eq(fip->eq, &entry,
-			FI_CONNREQ, &fip->pep->fid, timeout);
-	if (ret)
-		goto err_event_connreq;
+	uint32_t event;
 
 	ret = rpmemd_fip_init_cq(fip);
 	if (ret)
 		goto err_init_cq;
 
-	ret = rpmemd_fip_init_ep(fip, entry.info);
-	if (ret)
-		goto err_init_ep;
 
-	ret = fip->ops->post(fip);
-	if (ret)
-		goto err_post;
+	size_t done = 0;
+	size_t accepted = 0;
+	while (done < fip->nlanes) {
+		sret = fi_eq_sread(fip->eq, &event, &entry,
+				sizeof(entry), timeout, 0);
+		if (sret < 0) {
+			return -1;
+		}
 
-	ret = fi_accept(fip->ep, NULL, 0);
-	if (ret) {
-		RPMEMD_FI_ERR(ret, "accepting connection request");
-		goto err_accept;
+		if (event == FI_CONNREQ) {
+			ret = rpmemd_fip_init_ep(fip, entry.info, accepted);
+			if (ret)
+				goto err_init_ep;
+			if (fip->persist_method == RPMEM_PM_GPSPM) {
+				struct rpmemd_fip_lane *lanep =
+					&fip->lanes[accepted];
+				ret = rpmemd_fip_gpspm_post_msg(fip,
+						&lanep->recv, accepted);
+				if (ret)
+					goto err_post;
+			}
+
+			ret = fi_accept(fip->ep[accepted], NULL, 0);
+			if (ret) {
+				RPMEMD_FI_ERR(ret, "accepting "
+						"connection request");
+				goto err_accept;
+			}
+
+			fi_freeinfo(entry.info);
+			accepted++;
+		} else {
+			fi_freeinfo(entry.info);
+			done++;
+		}
+
 	}
 
-	fi_freeinfo(entry.info);
-
-	ret = rpmem_fip_read_eq(fip->eq, &entry,
-			FI_CONNECTED, &fip->ep->fid, -1);
-	if (ret)
-		goto err_event_connected;
-
-	fi_freeinfo(entry.info);
-
 	return 0;
-err_event_connected:
 err_accept:
 err_post:
 	rpmemd_fip_fini_ep(fip);
@@ -1140,7 +1173,6 @@ err_init_ep:
 	rpmemd_fip_fini_cq(fip);
 err_init_cq:
 	fi_freeinfo(entry.info);
-err_event_connreq:
 	return -1;
 }
 
@@ -1152,8 +1184,16 @@ rpmemd_fip_wait_close(struct rpmemd_fip *fip, int timeout)
 {
 	struct fi_eq_cm_entry entry;
 
-	return rpmem_fip_read_eq(fip->eq, &entry, FI_SHUTDOWN,
-			&fip->ep->fid, timeout);
+	int lret = 0;
+	int ret;
+	for (size_t i = 0; i < fip->nlanes; i++) {
+		ret = rpmem_fip_read_eq(fip->eq, &entry, FI_SHUTDOWN,
+			&fip->ep[i]->fid, timeout);
+		if (ret)
+			lret = ret;
+	}
+
+	return lret;
 }
 
 /*
