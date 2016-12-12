@@ -138,7 +138,9 @@ util_file_mkdir(const char *path, mode_t mode)
 /*
  * util_file_dir_open -- open a directory
  */
-int util_file_dir_open(struct dir_handle *handle, const char *path) {
+int
+util_file_dir_open(struct dir_handle *handle, const char *path)
+{
 	/* init handle */
 	handle->handle = NULL;
 	handle->path = path;
@@ -148,7 +150,9 @@ int util_file_dir_open(struct dir_handle *handle, const char *path) {
 /*
  * util_file_dir_next - read next file in directory
  */
-int util_file_dir_next(struct dir_handle *handle, struct file_info *info) {
+int
+util_file_dir_next(struct dir_handle *handle, struct file_info *info)
+{
 	WIN32_FIND_DATAA data;
 	if (handle->handle == NULL) {
 		handle->handle = FindFirstFileA(handle->path, &data);
@@ -170,13 +174,17 @@ int util_file_dir_next(struct dir_handle *handle, struct file_info *info) {
 /*
  * util_file_dir_close -- close a directory
  */
-int util_file_dir_close(struct dir_handle *handle) {
+int
+util_file_dir_close(struct dir_handle *handle)
+{
 	return FindClose(handle->handle);
 }
 
 /*
  * util_file_dir_close -- remove directory
  */
-int util_file_dir_remove(const char *path) {
+int
+util_file_dir_remove(const char *path)
+{
 	return RemoveDirectoryA(path) == 0 ? -1 : 0;
 }

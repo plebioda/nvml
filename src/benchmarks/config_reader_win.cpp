@@ -30,17 +30,17 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /*
- * config_reader.c -- config reader module definitions
+ * config_reader.cpp -- config reader module definitions
  */
 #include <assert.h>
+#include <queue.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/queue.h>
 #include <tchar.h>
 
-#include "config_reader.h"
-#include "scenario.h"
+#include "config_reader.hpp"
+#include "scenario.hpp"
 
 #define SECTION_GLOBAL TEXT("global")
 #define KEY_BENCHMARK TEXT("bench")

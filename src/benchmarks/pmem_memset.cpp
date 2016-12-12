@@ -30,7 +30,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /*
- * pmem_memset.c -- benchmark for pmem_memset function
+ * pmem_memset.cpp -- benchmark for pmem_memset function
  */
 
 #include <assert.h>

@@ -30,7 +30,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /*
- * pmem_memcpy.c -- benchmark implementation for pmem_memcpy
+ * pmem_memcpy.cpp -- benchmark implementation for pmem_memcpy
  */
 #include <assert.h>
 #include <errno.h>

@@ -31,7 +31,7 @@
  */
 
 /*
- * rpmem_persist.c -- rpmem persist benchmarks definition
+ * rpmem_persist.cpp -- rpmem persist benchmarks definition
  */
 
 #include <assert.h>

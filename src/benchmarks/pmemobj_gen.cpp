@@ -31,7 +31,8 @@
  */
 
 /*
- * pmemobj_gen.c -- benchmark for pmemobj_direct() and pmemobj_open() functions.
+ * pmemobj_gen.cpp -- benchmark for pmemobj_direct()
+ * and pmemobj_open() functions.
  */
 
 #include <assert.h>
@@ -418,9 +419,9 @@ pobj_init(struct benchmark *bench, struct benchmark_args *args)
 
 	return 0;
 free_sets:
-	for (i--; i >= 0; i--) {
-		pmemobj_close(bench_priv->pop[i]);
-		free((char *)bench_priv->sets[i]);
+	for (; i > 0; i--) {
+		pmemobj_close(bench_priv->pop[i - 1]);
+		free((char *)bench_priv->sets[i - 1]);
 	}
 free_pools:
 	free(bench_priv->sets);
