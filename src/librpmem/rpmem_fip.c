@@ -607,7 +607,7 @@ rpmem_fip_init_lanes_apm(struct rpmem_fip *fip)
 				fip->mr_desc, 0,
 				fip->rkey,
 				&fip->lanes.apm[i],
-				0);
+				FI_COMPLETION);
 
 		/* READ */
 		rpmem_fip_rma_init(&fip->lanes.apm[i].read,
@@ -690,13 +690,14 @@ rpmem_fip_persist_apm(struct rpmem_fip *fip, size_t offset,
 		RPMEM_FI_ERR(ret, "RMA write");
 		return ret;
 	}
-
+	if (0) {
 	/* READ to read-after-write buffer */
 	ret = rpmem_fip_readmsg(fip->ep[lane], &lanep->read, fip->raw_buff,
 			RPMEM_RAW_SIZE, raddr);
 	if (unlikely(ret)) {
 		RPMEM_FI_ERR(ret, "RMA read");
 		return ret;
+	}
 	}
 
 	struct fi_cq_msg_entry entry;
@@ -1292,7 +1293,7 @@ rpmem_fip_close(struct rpmem_fip *fip)
 		ret = fi_shutdown(fip->ep[i], 0);
 		if (ret) {
 			RPMEM_FI_ERR(ret, "disconnecting endpoint");
-			lret = ret;
+			// lret = ret;
 		}
 	}
 
