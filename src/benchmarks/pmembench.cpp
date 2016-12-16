@@ -65,6 +65,8 @@
 #include "rpmem_util.h"
 #endif
 
+#include <vector>
+
 /*
  * struct pmembench -- main context
  */
@@ -90,25 +92,35 @@ struct benchmark {
 	size_t args_size;
 };
 
-/*
- * struct results -- statistics for total measurements
- */
-struct results {
-	double min;
-	double max;
-	double avg;
-	double std_dev;
-	double med;
+struct bench_op_results {
+	benchmark_time_t tend;
 };
 
-/*
- * struct latency -- statistics for latency measurements
- */
-struct latency {
-	uint64_t max;
-	uint64_t min;
-	uint64_t avg;
-	double std_dev;
+struct bench_worker_results {
+	benchmark_time_t tcbeg;
+	benchmark_time_t tbeg;
+	std::vector<bench_op_results> ores;
+};
+
+struct bench_results {
+	std::vector<bench_worker_results> wres;
+};
+
+struct bench_total_results {
+	bench_total_results(size_t nrepeats, size_t nworkers, size_t nops) {
+		bres.reserve(nrepeats);
+		for (auto &r: bres) {
+			r.wres.reserve(nworkers);
+			for (auto &w: r.wres) {
+				w.ores.reserve(nops);
+			}
+		}
+	}
+
+	~bench_total_results() {
+	}
+
+	std::vector<bench_results> bres;
 };
 
 /*
@@ -347,20 +359,33 @@ pmembench_merge_clos(struct benchmark *bench)
 }
 
 /*
+ * pmembench_dummy_op -- dummy operation
+ */
+static size_t 
+pmembench_dummy_op(struct benchmark *bench, struct operation_info *info)
+{
+	return info->index;
+}
+
+/*
  * pmembench_run_worker -- run worker with benchmark operation
  */
 static int
 pmembench_run_worker(struct benchmark *bench, struct worker_info *winfo)
 {
-	uint64_t i;
-	uint64_t ops = winfo->nops;
-	benchmark_time_t start, stop;
-	for (i = 0; i < ops; i++) {
-		benchmark_time_get(&start);
+	benchmark_time_get(winfo->tcbeg);
+	for (size_t i = 0; i < winfo->nops; i++) {
+		/* avoid optimizing out calling dummy function */
+		size_t id = pmembench_dummy_op(bench, &winfo->opinfo[i]);
+		if (id >= winfo->nops)
+			return -1;
+	}
+
+	benchmark_time_get(winfo->tbeg);
+	for (size_t i = 0; i < winfo->nops; i++) {
 		if (bench->info->operation(bench, &winfo->opinfo[i]))
 			return -1;
-		benchmark_time_get(&stop);
-		benchmark_time_diff(&winfo->opinfo[i].t_diff, &start, &stop);
+		benchmark_time_get(winfo->opinfo->tend);
 	}
 
 	return 0;
@@ -401,6 +426,7 @@ pmembench_print_header(struct pmembench *pb, struct benchmark *bench,
 	printf("\n");
 }
 
+#if 0
 /*
  * pmembench_print_results -- print benchmark's results
  */
@@ -423,6 +449,7 @@ pmembench_print_results(struct benchmark *bench, struct benchmark_args *args,
 	}
 	printf("\n");
 }
+#endif
 
 /*
  * pmembench_parse_clos -- parse command line arguments for benchmark
@@ -461,20 +488,21 @@ pmembench_parse_clo(struct pmembench *pb, struct benchmark *bench,
 static int
 pmembench_init_workers(struct benchmark_worker **workers, size_t nworkers,
 		       size_t n_ops, struct benchmark *bench,
-		       struct benchmark_args *args)
+		       struct benchmark_args *args,
+		       bench_results &bres)
 {
-	size_t i;
-	for (i = 0; i < nworkers; i++) {
+	for (size_t i = 0; i < nworkers; i++) {
 		workers[i] = benchmark_worker_alloc();
 		workers[i]->info.index = i;
 		workers[i]->info.nops = n_ops;
 		workers[i]->info.opinfo = (struct operation_info *)calloc(
 			n_ops, sizeof(struct operation_info));
-		size_t j;
-		for (j = 0; j < n_ops; j++) {
+		workers[i]->info.tbeg = &bres.wres[i].tbeg;
+		for (size_t j = 0; j < n_ops; j++) {
 			workers[i]->info.opinfo[j].worker = &workers[i]->info;
 			workers[i]->info.opinfo[j].args = args;
 			workers[i]->info.opinfo[j].index = j;
+			workers[i]->info.tend = &bres.wres[i].ores[j].tend;
 		}
 		workers[i]->bench = bench;
 		workers[i]->args = args;
@@ -486,15 +514,7 @@ pmembench_init_workers(struct benchmark_worker **workers, size_t nworkers,
 	return 0;
 }
 
-/*
- * pmembench_dummy_op -- dummy operation
- */
-static int
-pmembench_dummy_op()
-{
-	return 0;
-}
-
+#if 0
 /*
  * compare_doubles -- comparing function used for sorting
  */
@@ -505,7 +525,9 @@ compare_doubles(const void *a1, const void *b1)
 	const double *b = (const double *)b1;
 	return (*a > *b) - (*a < *b);
 }
+#endif
 
+#if 0
 /*
  * pmembench_get_results -- return results of one repeat
  */
@@ -564,7 +586,9 @@ pmembench_get_results(struct benchmark_worker **workers, size_t nworkers,
 	}
 	stats->std_dev = sqrt(stats->std_dev / count);
 }
+#endif
 
+#if 0
 /*
  * pmembench_get_total_results -- return results of all repeats of scenario
  */
@@ -625,6 +649,7 @@ pmembench_get_total_results(struct latency *stats, double *workers_times,
 	latency->std_dev = sqrt(latency->std_dev / repeats);
 	total->std_dev = sqrt(total->std_dev / nresults);
 }
+#endif
 
 /*
  * pmembench_print_args -- print arguments for one benchmark
@@ -973,13 +998,8 @@ pmembench_run(struct pmembench *pb, struct benchmark *bench)
 			!bench->info->multithread ? 1 : args->n_threads;
 		size_t n_ops =
 			!bench->info->multiops ? 1 : args->n_ops_per_thread;
-
-		stats = (struct latency *)calloc(args->repeats,
-						 sizeof(struct latency));
-		assert(stats != NULL);
-		workers_times = (double *)calloc(n_threads * args->repeats,
-						 sizeof(double));
-		assert(workers_times != NULL);
+		struct bench_total_results *res = new bench_total_results(args->repeats,
+				args->n_threads, args->n_ops_per_thread);
 
 		for (unsigned i = 0; i < args->repeats; i++) {
 			if (bench->info->rm_file) {
@@ -1008,8 +1028,7 @@ pmembench_run(struct pmembench *pb, struct benchmark *bench)
 			assert(workers != NULL);
 
 			if ((ret = pmembench_init_workers(workers, n_threads,
-							  n_ops, bench,
-							  args)) != 0) {
+						  n_ops, bench, args, res->bres[i])) != 0) {
 				if (bench->info->exit)
 					bench->info->exit(bench, args);
 				goto out;
@@ -1027,10 +1046,12 @@ pmembench_run(struct pmembench *pb, struct benchmark *bench)
 						"thread number %d failed\n", j);
 				}
 			}
+#if 0
 			if (ret == 0)
 				pmembench_get_results(
 					workers, n_threads, &stats[i],
 					&workers_times[i * n_threads]);
+#endif
 
 			for (unsigned j = 0; j < args->n_threads; j++) {
 				benchmark_worker_exit(workers[j]);
@@ -1044,12 +1065,16 @@ pmembench_run(struct pmembench *pb, struct benchmark *bench)
 			if (bench->info->exit)
 				bench->info->exit(bench, args);
 		}
+#if 0
 		struct results total;
 		struct latency latency;
 		pmembench_get_total_results(stats, workers_times, &total,
 					    &latency, args->repeats, n_threads);
 		pmembench_print_results(bench, args, n_threads, n_ops, &total,
 					&latency);
+#endif
+
+		delete res;
 		free(stats);
 		free(workers_times);
 		stats = NULL;
