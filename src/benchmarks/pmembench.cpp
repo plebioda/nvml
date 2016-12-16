@@ -64,6 +64,7 @@
 #include "rpmem_ssh.h"
 #include "rpmem_util.h"
 #endif
+
 /*
  * struct pmembench -- main context
  */
@@ -73,6 +74,8 @@ struct pmembench {
 	struct scenario *scenario;
 	struct clo_vec *clovec;
 	bool override_clos;
+	char old_dir[PATH_MAX];
+	bool dir_changed;
 };
 
 /*
@@ -827,14 +830,10 @@ pmembench_remove_file(const char *path)
 	util_stat(path, &status);
 	if (!(status.st_mode & S_IFDIR)) {
 		ret = util_is_poolset_file(path);
-		if (ret == 0) {
-			return util_unlink(path);
-		} else if (ret == 1) {
+		if (ret == 1)
 			return util_poolset_foreach_part(path, remove_part_cb,
 							 NULL);
-		}
-
-		return ret;
+		return util_unlink(path);
 	}
 
 	struct dir_handle it;
@@ -866,13 +865,46 @@ pmembench_remove_file(const char *path)
 }
 
 /*
+ * pmembench_chdir -- change current directory, if dir is NULL go back to the
+ * previous one
+ */
+static int
+pmembench_chdir(struct pmembench *pb, const char *dir)
+{
+	if (dir) {
+		/* get current dir name */
+		if (getcwd(pb->old_dir, PATH_MAX) == NULL) {
+			perror("getcwd");
+			return -1;
+		}
+
+		if (chdir(dir)) {
+			perror(dir);
+			return -1;
+		}
+
+		pb->dir_changed = true;
+	} else {
+		if (!pb->dir_changed)
+			return 0;
+
+		if (chdir(pb->old_dir)) {
+			perror(pb->old_dir);
+			return -1;
+		}
+		pb->dir_changed = false;
+	}
+
+	return 0;
+}
+
+/*
  * pmembench_run -- runs one benchmark. Parses arguments and performs
  * specific functions.
  */
 static int
 pmembench_run(struct pmembench *pb, struct benchmark *bench)
 {
-	char old_wd[PATH_MAX];
 	int ret = 0;
 	struct benchmark_args *args = NULL;
 	struct latency *stats = NULL;
@@ -882,23 +914,9 @@ pmembench_run(struct pmembench *pb, struct benchmark *bench)
 	assert(bench->info != NULL);
 	pmembench_merge_clos(bench);
 
-	/*
-	 * Check if PMEMBENCH_DIR env var is set and change
-	 * the working directory accordingly.
-	 */
-	char *wd = getenv("PMEMBENCH_DIR");
-	if (wd != NULL) {
-		/* get current dir name */
-		if (getcwd(old_wd, PATH_MAX) == NULL) {
-			perror("getcwd");
-			ret = -1;
-			goto out_release_clos;
-		}
-		if (chdir(wd)) {
-			perror("chdir(wd)");
-			ret = -1;
-			goto out_release_clos;
-		}
+	if (pmembench_chdir(pb, getenv("PMEMBENCH_DIR"))) {
+		ret = 1;
+		goto out_release_clos;
 	}
 
 	if (bench->info->pre_init) {
@@ -920,12 +938,7 @@ pmembench_run(struct pmembench *pb, struct benchmark *bench)
 	}
 
 	args = (struct benchmark_args *)clo_vec_get_args(clovec, 0);
-	if (args == NULL) {
-		warn("%s: parsing command line arguments failed",
-		     bench->info->name);
-		ret = -1;
-		goto out_release_args;
-	}
+	assert(args != NULL);
 
 	if (args->help) {
 		pmembench_print_help_single(bench);
@@ -934,18 +947,14 @@ pmembench_run(struct pmembench *pb, struct benchmark *bench)
 
 	pmembench_print_header(pb, bench, clovec);
 
-	size_t args_i;
-	for (args_i = 0; args_i < clovec->nargs; args_i++) {
+	for (size_t args_i = 0; args_i < clovec->nargs; args_i++) {
 		args = (struct benchmark_args *)clo_vec_get_args(clovec,
 								 args_i);
-		if (args == NULL) {
-			warn("%s: parsing command line arguments failed",
-			     bench->info->name);
-			ret = -1;
-			goto out;
-		}
+		assert(args != NULL);
+
 		args->opts = (void *)((uintptr_t)args +
 				      sizeof(struct benchmark_args));
+
 		args->is_poolset = util_is_poolset_file(args->fname) == 1;
 		if (args->is_poolset) {
 			if (!bench->info->allow_poolset) {
@@ -1006,12 +1015,11 @@ pmembench_run(struct pmembench *pb, struct benchmark *bench)
 				goto out;
 			}
 
-			unsigned j;
-			for (j = 0; j < args->n_threads; j++) {
+			for (unsigned j = 0; j < args->n_threads; j++) {
 				benchmark_worker_run(workers[j]);
 			}
 
-			for (j = 0; j < args->n_threads; j++) {
+			for (unsigned j = 0; j < args->n_threads; j++) {
 				benchmark_worker_join(workers[j]);
 				if (workers[j]->ret != 0) {
 					ret = workers[j]->ret;
@@ -1024,7 +1032,7 @@ pmembench_run(struct pmembench *pb, struct benchmark *bench)
 					workers, n_threads, &stats[i],
 					&workers_times[i * n_threads]);
 
-			for (j = 0; j < args->n_threads; j++) {
+			for (unsigned j = 0; j < args->n_threads; j++) {
 				benchmark_worker_exit(workers[j]);
 
 				free(workers[j]->info.opinfo);
@@ -1054,16 +1062,8 @@ out:
 		free(workers_times);
 out_release_args:
 	clo_vec_free(clovec);
-
 out_old_wd:
-	/* restore the original working directory */
-	if (wd != NULL) { /* Only if PMEMBENCH_DIR env var was defined */
-		if (chdir(old_wd)) {
-			perror("chdir(old_wd)");
-			ret = -1;
-		}
-	}
-
+	pmembench_chdir(pb, NULL);
 out_release_clos:
 	pmembench_release_clos(bench);
 	return ret;
