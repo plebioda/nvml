@@ -62,7 +62,7 @@ typedef int (*clo_eval_range_fn)(struct benchmark_clo *clo, void *first,
 				 void *step, void *last, char type,
 				 struct clo_vec_vlist *vlist);
 
-typedef const char *(*clo_str_fn)(struct benchmark_clo *clo, void *addr,
+typedef const char *(*clo_str_fn)(struct benchmark_clo *clo, const void *addr,
 				  size_t size);
 
 #define STR_BUFF_SIZE 1024
@@ -413,8 +413,10 @@ clo_parse_range(struct benchmark_clo *clo, const char *arg,
 		char *end;
 		errno = 0;
 		step = strtoull(str_step, &end, 10);
-		if (errno || !end || *end != '\0')
-			return -1;
+		if (errno || !end || *end != '\0') {
+			ret = -1;
+			goto out;
+		}
 
 		if (parse_single(clo, str_last, &last)) {
 			ret = -1;
@@ -515,7 +517,7 @@ clo_parse_uint(struct benchmark_clo *clo, const char *arg,
  * clo_str_flag -- (internal) convert flag value to string
  */
 static const char *
-clo_str_flag(struct benchmark_clo *clo, void *addr, size_t size)
+clo_str_flag(struct benchmark_clo *clo, const void *addr, size_t size)
 {
 	if (clo->off + sizeof(bool) > size)
 		return NULL;
@@ -529,7 +531,7 @@ clo_str_flag(struct benchmark_clo *clo, void *addr, size_t size)
  * clo_str_str -- (internal) convert str value to string
  */
 static const char *
-clo_str_str(struct benchmark_clo *clo, void *addr, size_t size)
+clo_str_str(struct benchmark_clo *clo, const void *addr, size_t size)
 {
 	if (clo->off + sizeof(char *) > size)
 		return NULL;
@@ -541,7 +543,7 @@ clo_str_str(struct benchmark_clo *clo, void *addr, size_t size)
  * clo_str_int -- (internal) convert int value to string
  */
 static const char *
-clo_str_int(struct benchmark_clo *clo, void *addr, size_t size)
+clo_str_int(struct benchmark_clo *clo, const void *addr, size_t size)
 {
 	if (clo->off + clo->type_int.size > size)
 		return NULL;
@@ -576,7 +578,7 @@ clo_str_int(struct benchmark_clo *clo, void *addr, size_t size)
  * clo_str_uint -- (internal) convert uint value to string
  */
 static const char *
-clo_str_uint(struct benchmark_clo *clo, void *addr, size_t size)
+clo_str_uint(struct benchmark_clo *clo, const void *addr, size_t size)
 {
 	if (clo->off + clo->type_uint.size > size)
 		return NULL;
@@ -979,7 +981,7 @@ out:
  * the value from structure pointed by args of size size.
  */
 const char *
-benchmark_clo_str(struct benchmark_clo *clo, void *args, size_t size)
+benchmark_clo_str(struct benchmark_clo *clo, const void *args, size_t size)
 {
 	assert(clo->type < CLO_TYPE_MAX);
 	return clo_str[clo->type](clo, args, size);

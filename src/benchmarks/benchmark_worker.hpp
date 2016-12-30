@@ -74,14 +74,14 @@ enum benchmark_worker_state {
 struct benchmark_worker {
 	pthread_t thread;
 	struct benchmark *bench;
-	struct benchmark_args *args;
+	const struct benchmark_args *args;
 	struct worker_info info;
 	int ret;
 	int ret_init;
 	int (*func)(struct benchmark *bench, struct worker_info *info);
-	int (*init)(struct benchmark *bench, struct benchmark_args *args,
+	int (*init)(struct benchmark *bench, const struct benchmark_args *args,
 		    struct worker_info *info);
-	void (*exit)(struct benchmark *bench, struct benchmark_args *args,
+	void (*exit)(struct benchmark *bench, const struct benchmark_args *args,
 		     struct worker_info *info);
 	pthread_cond_t cond;
 	pthread_mutex_t lock;

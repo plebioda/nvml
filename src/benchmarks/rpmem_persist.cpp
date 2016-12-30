@@ -121,7 +121,7 @@ parse_op_mode(const char *arg)
  * init_offsets -- initialize offsets[] array depending on the selected mode
  */
 static int
-init_offsets(struct benchmark_args *args, struct rpmem_bench *mb,
+init_offsets(const struct benchmark_args *args, struct rpmem_bench *mb,
 	     enum operation_mode op_mode)
 {
 	size_t n_ops_by_size =
@@ -271,7 +271,7 @@ rpmem_unmap_file(struct rpmem_bench *mb)
  */
 static int
 rpmem_poolset_init(const char *path, struct rpmem_bench *mb,
-		   struct benchmark_args *args)
+		   const struct benchmark_args *args)
 {
 	struct pool_set *set;
 	struct pool_replica *rep;
@@ -412,7 +412,7 @@ rpmem_poolset_fini(struct rpmem_bench *mb)
  */
 static void
 rpmem_set_fsize(struct rpmem_bench *mb, enum operation_mode op_mode,
-		struct benchmark_args *args)
+		const struct benchmark_args *args)
 {
 	mb->csize_align = ALIGN_CL(mb->pargs->chunk_size);
 
@@ -451,7 +451,7 @@ rpmem_set_fsize(struct rpmem_bench *mb, enum operation_mode op_mode,
  * rpmem_init -- initialization function
  */
 static int
-rpmem_init(struct benchmark *bench, struct benchmark_args *args)
+rpmem_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);
@@ -509,7 +509,7 @@ err_parse_mode:
  * rpmem_exit -- benchmark cleanup function
  */
 static int
-rpmem_exit(struct benchmark *bench, struct benchmark_args *args)
+rpmem_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct rpmem_bench *mb =
 		(struct rpmem_bench *)pmembench_get_priv(bench);

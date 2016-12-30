@@ -323,7 +323,7 @@ log_read_op(struct benchmark *bench, struct operation_info *info)
  * log_init_worker -- init benchmark worker
  */
 static int
-log_init_worker(struct benchmark *bench, struct benchmark_args *args,
+log_init_worker(struct benchmark *bench, const struct benchmark_args *args,
 		struct worker_info *worker)
 {
 	int ret = 0;
@@ -435,7 +435,7 @@ err_free_worker_info:
  * log_free_worker -- cleanup benchmark worker
  */
 static void
-log_free_worker(struct benchmark *bench, struct benchmark_args *args,
+log_free_worker(struct benchmark *bench, const struct benchmark_args *args,
 		struct worker_info *worker)
 {
 
@@ -454,7 +454,7 @@ log_free_worker(struct benchmark *bench, struct benchmark_args *args,
  * log_init -- benchmark initialization function
  */
 static int
-log_init(struct benchmark *bench, struct benchmark_args *args)
+log_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	int ret = 0;
 	assert(bench);
@@ -565,7 +565,7 @@ err_free_lb:
  * log_exit -- cleanup benchmark
  */
 static int
-log_exit(struct benchmark *bench, struct benchmark_args *args)
+log_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct log_bench *lb = (struct log_bench *)pmembench_get_priv(bench);
 

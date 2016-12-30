@@ -201,10 +201,10 @@ struct worker_info {
  * operation_info - Information about operation.
  */
 struct operation_info {
-	struct worker_info *worker;  /* worker's info */
-	struct benchmark_args *args; /* benchmark arguments */
-	size_t index;		     /* operation's index */
-	benchmark_time_t end;	/* operation's end timestamp */
+	struct worker_info *worker;	/* worker's info */
+	const struct benchmark_args *args; /* benchmark arguments */
+	size_t index;			   /* operation's index */
+	benchmark_time_t end;		   /* operation's end timestamp */
 };
 
 /*
@@ -260,12 +260,13 @@ struct benchmark_info {
 	size_t opts_size;
 	void (*print_help)(struct benchmark *bench);
 	int (*pre_init)(struct benchmark *bench);
-	int (*init)(struct benchmark *bench, struct benchmark_args *args);
-	int (*exit)(struct benchmark *bench, struct benchmark_args *args);
-	int (*init_worker)(struct benchmark *bench, struct benchmark_args *args,
+	int (*init)(struct benchmark *bench, const struct benchmark_args *args);
+	int (*exit)(struct benchmark *bench, const struct benchmark_args *args);
+	int (*init_worker)(struct benchmark *bench,
+			   const struct benchmark_args *args,
 			   struct worker_info *worker);
 	void (*free_worker)(struct benchmark *bench,
-			    struct benchmark_args *args,
+			    const struct benchmark_args *args,
 			    struct worker_info *worker);
 	int (*operation)(struct benchmark *bench, struct operation_info *info);
 	bool multithread;

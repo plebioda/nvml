@@ -244,7 +244,6 @@ static int
 flush_msync_0(struct pmem_bench *pmb, void *addr, size_t len)
 {
 	void *ptr = align_addr(addr, PAGE_4K);
-	len = align_len(len, addr, PAGE_4K);
 
 	msync(ptr, 0, MS_SYNC);
 	return 0;
@@ -369,7 +368,7 @@ parse_op_type(const char *arg)
  * Parses command line arguments, allocates persistent memory, and maps it.
  */
 static int
-pmem_flush_init(struct benchmark *bench, struct benchmark_args *args)
+pmem_flush_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);
@@ -476,7 +475,7 @@ err_free_pmb:
  * pmem_flush_exit -- benchmark cleanup
  */
 static int
-pmem_flush_exit(struct benchmark *bench, struct benchmark_args *args)
+pmem_flush_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct pmem_bench *pmb = (struct pmem_bench *)pmembench_get_priv(bench);
 	pmem_unmap(pmb->pmem_addr, pmb->pmem_len);

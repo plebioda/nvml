@@ -108,7 +108,7 @@ struct map_bench {
 	size_t nkeys;
 	size_t init_nkeys;
 	uint64_t *keys;
-	struct benchmark_args *args;
+	const struct benchmark_args *args;
 	struct map_bench_args *margs;
 
 	TOID(struct root) root;
@@ -335,7 +335,8 @@ map_get_op(struct benchmark *bench, struct operation_info *info)
  * map_common_init_worker -- common init worker function for map_* benchmarks
  */
 static int
-map_common_init_worker(struct benchmark *bench, struct benchmark_args *args,
+map_common_init_worker(struct benchmark *bench,
+		       const struct benchmark_args *args,
 		       struct worker_info *worker)
 {
 	struct map_bench_worker *tworker =
@@ -382,7 +383,8 @@ err_free_worker:
  * benchmarks
  */
 static void
-map_common_free_worker(struct benchmark *bench, struct benchmark_args *args,
+map_common_free_worker(struct benchmark *bench,
+		       const struct benchmark_args *args,
 		       struct worker_info *worker)
 {
 	struct map_bench_worker *tworker =
@@ -401,7 +403,8 @@ map_common_free_worker(struct benchmark *bench, struct benchmark_args *args,
  * map_insert_init_worker -- init worker function for map_insert benchmark
  */
 static int
-map_insert_init_worker(struct benchmark *bench, struct benchmark_args *args,
+map_insert_init_worker(struct benchmark *bench,
+		       const struct benchmark_args *args,
 		       struct worker_info *worker)
 {
 	int ret = map_common_init_worker(bench, args, worker);
@@ -425,7 +428,8 @@ map_insert_init_worker(struct benchmark *bench, struct benchmark_args *args,
  * map_global_rand_keys_init -- assign random keys from global keys array
  */
 static int
-map_global_rand_keys_init(struct benchmark *bench, struct benchmark_args *args,
+map_global_rand_keys_init(struct benchmark *bench,
+			  const struct benchmark_args *args,
 			  struct worker_info *worker)
 {
 
@@ -456,7 +460,8 @@ map_global_rand_keys_init(struct benchmark *bench, struct benchmark_args *args,
  * map_remove_init_worker -- init worker function for map_remove benchmark
  */
 static int
-map_remove_init_worker(struct benchmark *bench, struct benchmark_args *args,
+map_remove_init_worker(struct benchmark *bench,
+		       const struct benchmark_args *args,
 		       struct worker_info *worker)
 {
 	int ret = map_common_init_worker(bench, args, worker);
@@ -476,7 +481,8 @@ err_common_free_worker:
  * map_bench_get_init_worker -- init worker function for map_get benchmark
  */
 static int
-map_bench_get_init_worker(struct benchmark *bench, struct benchmark_args *args,
+map_bench_get_init_worker(struct benchmark *bench,
+			  const struct benchmark_args *args,
 			  struct worker_info *worker)
 {
 	int ret = map_common_init_worker(bench, args, worker);
@@ -496,7 +502,7 @@ err_common_free_worker:
  * map_common_init -- common init function for map_* benchmarks
  */
 static int
-map_common_init(struct benchmark *bench, struct benchmark_args *args)
+map_common_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench);
 	assert(args);
@@ -607,7 +613,7 @@ err_free_bench:
  * map_common_exit -- common cleanup function for map_* benchmarks
  */
 static int
-map_common_exit(struct benchmark *bench, struct benchmark_args *args)
+map_common_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct map_bench *tree = (struct map_bench *)pmembench_get_priv(bench);
 
@@ -622,7 +628,7 @@ map_common_exit(struct benchmark *bench, struct benchmark_args *args)
  * map_keys_init -- initialize array with keys
  */
 static int
-map_keys_init(struct benchmark *bench, struct benchmark_args *args)
+map_keys_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct map_bench *map_bench =
 		(struct map_bench *)pmembench_get_priv(bench);
@@ -686,7 +692,7 @@ map_keys_init(struct benchmark *bench, struct benchmark_args *args)
  * map_keys_exit -- cleanup of keys array
  */
 static int
-map_keys_exit(struct benchmark *bench, struct benchmark_args *args)
+map_keys_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct map_bench *tree = (struct map_bench *)pmembench_get_priv(bench);
 	free(tree->keys);
@@ -697,7 +703,7 @@ map_keys_exit(struct benchmark *bench, struct benchmark_args *args)
  * map_remove_init -- init function for map_remove benchmark
  */
 static int
-map_remove_init(struct benchmark *bench, struct benchmark_args *args)
+map_remove_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	int ret = map_common_init(bench, args);
 	if (ret)
@@ -716,7 +722,7 @@ err_exit_common:
  * map_remove_exit -- cleanup function for map_remove benchmark
  */
 static int
-map_remove_exit(struct benchmark *bench, struct benchmark_args *args)
+map_remove_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	map_keys_exit(bench, args);
 	return map_common_exit(bench, args);
@@ -726,7 +732,7 @@ map_remove_exit(struct benchmark *bench, struct benchmark_args *args)
  * map_bench_get_init -- init function for map_get benchmark
  */
 static int
-map_bench_get_init(struct benchmark *bench, struct benchmark_args *args)
+map_bench_get_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	int ret = map_common_init(bench, args);
 	if (ret)
@@ -745,7 +751,7 @@ err_exit_common:
  * map_get_exit -- exit function for map_get benchmark
  */
 static int
-map_get_exit(struct benchmark *bench, struct benchmark_args *args)
+map_get_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	map_keys_exit(bench, args);
 	return map_common_exit(bench, args);

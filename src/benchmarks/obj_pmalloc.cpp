@@ -103,7 +103,7 @@ struct obj_bench {
  * pfree. It allocates the PMEM memory pool and the necessary offset vector.
  */
 static int
-obj_init(struct benchmark *bench, struct benchmark_args *args)
+obj_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);
@@ -207,7 +207,7 @@ free_ob:
  * benchmarks. It frees the allocated offset vector and the memory pool.
  */
 static int
-obj_exit(struct benchmark *bench, struct benchmark_args *args)
+obj_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct obj_bench *ob = (struct obj_bench *)pmembench_get_priv(bench);
 
@@ -224,7 +224,7 @@ obj_exit(struct benchmark *bench, struct benchmark_args *args)
  * common initialization.
  */
 static int
-pmalloc_init(struct benchmark *bench, struct benchmark_args *args)
+pmalloc_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	return obj_init(bench, args);
 }
@@ -254,7 +254,7 @@ pmalloc_op(struct benchmark *bench, struct operation_info *info)
  * during pmalloc_op and performs the common exit operations.
  */
 static int
-pmalloc_exit(struct benchmark *bench, struct benchmark_args *args)
+pmalloc_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct obj_bench *ob = (struct obj_bench *)pmembench_get_priv(bench);
 
@@ -271,7 +271,7 @@ pmalloc_exit(struct benchmark *bench, struct benchmark_args *args)
  * initialization and allocates the memory to be freed during pfree_op.
  */
 static int
-pfree_init(struct benchmark *bench, struct benchmark_args *args)
+pfree_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	int ret = obj_init(bench, args);
 	if (ret)

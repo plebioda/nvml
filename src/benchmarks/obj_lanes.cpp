@@ -90,7 +90,7 @@ parse_lane_section(const char *arg)
  * lanes_init -- benchmark initialization
  */
 static int
-lanes_init(struct benchmark *bench, struct benchmark_args *args)
+lanes_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);
@@ -131,7 +131,7 @@ err:
  * lanes_exit -- benchmark clean up
  */
 static int
-lanes_exit(struct benchmark *bench, struct benchmark_args *args)
+lanes_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct obj_bench *ob = (struct obj_bench *)pmembench_get_priv(bench);
 

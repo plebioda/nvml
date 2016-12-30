@@ -681,7 +681,7 @@ free_worker(struct obj_worker *obj_worker)
  * obj_remove_free, obj_move. Requires releasing objects directly from list.
  */
 static void
-free_worker_list(struct benchmark *bench, struct benchmark_args *args,
+free_worker_list(struct benchmark *bench, const struct benchmark_args *args,
 		 struct worker_info *worker)
 {
 	struct obj_worker *obj_worker = (struct obj_worker *)worker->priv;
@@ -696,7 +696,7 @@ free_worker_list(struct benchmark *bench, struct benchmark_args *args,
  * list and where is possibility of using queue flag.
  */
 static void
-free_worker_items(struct benchmark *bench, struct benchmark_args *args,
+free_worker_items(struct benchmark *bench, const struct benchmark_args *args,
 		  struct worker_info *worker)
 {
 	struct obj_worker *obj_worker = (struct obj_worker *)worker->priv;
@@ -711,7 +711,7 @@ free_worker_items(struct benchmark *bench, struct benchmark_args *args,
  * function of obj_move benchmarks.
  */
 static void
-obj_move_free_worker(struct benchmark *bench, struct benchmark_args *args,
+obj_move_free_worker(struct benchmark *bench, const struct benchmark_args *args,
 		     struct worker_info *worker)
 {
 	struct obj_worker *obj_worker = (struct obj_worker *)worker->priv;
@@ -765,7 +765,8 @@ err:
  * benchmark.
  */
 static int
-obj_insert_init_worker(struct benchmark *bench, struct benchmark_args *args,
+obj_insert_init_worker(struct benchmark *bench,
+		       const struct benchmark_args *args,
 		       struct worker_info *worker)
 {
 	return obj_init_worker(worker, obj_bench.max_len, obj_bench.min_len);
@@ -776,7 +777,8 @@ obj_insert_init_worker(struct benchmark *bench, struct benchmark_args *args,
  * obj_insert_new benchmark.
  */
 static int
-obj_insert_new_init_worker(struct benchmark *bench, struct benchmark_args *args,
+obj_insert_new_init_worker(struct benchmark *bench,
+			   const struct benchmark_args *args,
 			   struct worker_info *worker)
 {
 	return obj_init_worker(worker, obj_bench.min_len, obj_bench.min_len);
@@ -787,7 +789,8 @@ obj_insert_new_init_worker(struct benchmark *bench, struct benchmark_args *args,
  * and obj_remove_free benchmarks.
  */
 static int
-obj_remove_init_worker(struct benchmark *bench, struct benchmark_args *args,
+obj_remove_init_worker(struct benchmark *bench,
+		       const struct benchmark_args *args,
 		       struct worker_info *worker)
 {
 	return obj_init_worker(worker, obj_bench.max_len, obj_bench.max_len);
@@ -798,7 +801,7 @@ obj_remove_init_worker(struct benchmark *bench, struct benchmark_args *args,
  * benchmark.
  */
 static int
-obj_move_init_worker(struct benchmark *bench, struct benchmark_args *args,
+obj_move_init_worker(struct benchmark *bench, const struct benchmark_args *args,
 		     struct worker_info *worker)
 {
 	if (obj_init_worker(worker, obj_bench.max_len, obj_bench.max_len) != 0)
@@ -851,7 +854,7 @@ free:
  * creates persistent pool.
  */
 static int
-obj_init(struct benchmark *bench, struct benchmark_args *args)
+obj_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);
@@ -942,7 +945,7 @@ free_random_types:
  * functions.
  */
 static int
-obj_exit(struct benchmark *bench, struct benchmark_args *args)
+obj_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	if (!obj_bench.args->queue) {
 		pmemobj_close(obj_bench.pop);

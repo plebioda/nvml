@@ -107,7 +107,7 @@ parse_op_mode(const char *arg)
  * init_offsets -- initialize offsets[] array depending on the selected mode
  */
 static int
-init_offsets(struct benchmark_args *args, struct memset_bench *mb,
+init_offsets(const struct benchmark_args *args, struct memset_bench *mb,
 	     enum operation_mode op_mode)
 {
 	uint64_t n_threads = args->n_threads;
@@ -243,7 +243,7 @@ memset_op(struct benchmark *bench, struct operation_info *info)
  * memset_init -- initialization function
  */
 static int
-memset_init(struct benchmark *bench, struct benchmark_args *args)
+memset_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);
@@ -322,7 +322,7 @@ err_free_mb:
  * memset_exit -- benchmark cleanup function
  */
 static int
-memset_exit(struct benchmark *bench, struct benchmark_args *args)
+memset_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct memset_bench *mb =
 		(struct memset_bench *)pmembench_get_priv(bench);

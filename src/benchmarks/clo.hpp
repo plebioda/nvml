@@ -37,7 +37,7 @@ int benchmark_clo_parse(int argc, char *argv[], struct benchmark_clo *clos,
 int benchmark_clo_parse_scenario(struct scenario *scenario,
 				 struct benchmark_clo *clos, size_t nclo,
 				 struct clo_vec *clovec);
-const char *benchmark_clo_str(struct benchmark_clo *clo, void *args,
+const char *benchmark_clo_str(struct benchmark_clo *clo, const void *args,
 			      size_t size);
 int clo_get_scenarios(int argc, char *argv[],
 		      struct scenarios *available_scenarios,
