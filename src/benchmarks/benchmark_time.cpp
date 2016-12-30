@@ -79,9 +79,11 @@ benchmark_time_get_secs(benchmark_time_t *t)
 unsigned long long
 benchmark_time_get_nsecs(benchmark_time_t *t)
 {
-	unsigned long long ret = t->tv_nsec;
+	assert(t->tv_nsec > 0);
+	assert(t->tv_sec >= 0);
+	unsigned long long ret = (unsigned long long)t->tv_nsec;
 
-	ret += t->tv_sec * NSECPSEC;
+	ret += (unsigned long long)t->tv_sec * NSECPSEC;
 
 	return ret;
 }
@@ -104,6 +106,6 @@ benchmark_time_compare(const benchmark_time_t *t1, const benchmark_time_t *t2)
 void
 benchmark_time_set(benchmark_time_t *time, unsigned long long nsecs)
 {
-	time->tv_sec = nsecs / NSECPSEC;
-	time->tv_nsec = nsecs % NSECPSEC;
+	time->tv_sec = (time_t)(nsecs / NSECPSEC);
+	time->tv_nsec = (time_t)(nsecs % NSECPSEC);
 }

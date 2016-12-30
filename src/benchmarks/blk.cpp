@@ -104,14 +104,16 @@ blk_do_warmup(struct blk_bench *bb, const struct benchmark_args *args)
 	for (lba = 0; lba < bb->nblocks; ++lba) {
 		if (ba->file_io) {
 			size_t off = lba * args->dsize;
-			if (pwrite(bb->fd, buff, args->dsize, off) !=
+			assert((off_t)off >= 0);
+			if (pwrite(bb->fd, buff, args->dsize, (off_t)off) !=
 			    (ssize_t)args->dsize) {
 				perror("pwrite");
 				ret = -1;
 				goto out;
 			}
 		} else {
-			if (pmemblk_write(bb->pbp, buff, lba) < 0) {
+			assert((off_t)lba >= 0);
+			if (pmemblk_write(bb->pbp, buff, (off_t)lba) < 0) {
 				perror("pmemblk_write");
 				ret = -1;
 				goto out;
@@ -145,7 +147,8 @@ static int
 fileio_read(struct blk_bench *bb, const struct benchmark_args *ba,
 	    struct blk_worker *bworker, off_t off)
 {
-	off_t file_off = off * ba->dsize;
+	assert((off_t)ba->dsize >= 0);
+	off_t file_off = off * (off_t)ba->dsize;
 	if (pread(bb->fd, bworker->buff, ba->dsize, file_off) !=
 	    (ssize_t)ba->dsize) {
 		perror("pread");
@@ -175,7 +178,8 @@ static int
 fileio_write(struct blk_bench *bb, const struct benchmark_args *ba,
 	     struct blk_worker *bworker, off_t off)
 {
-	off_t file_off = off * ba->dsize;
+	off_t file_off = off * (off_t)ba->dsize;
+	assert(file_off >= 0);
 	if (pwrite(bb->fd, bworker->buff, ba->dsize, file_off) !=
 	    (ssize_t)ba->dsize) {
 		perror("pwrite");
@@ -215,7 +219,7 @@ blk_init_worker(struct benchmark *bench, const struct benchmark_args *args,
 	struct blk_bench *bb = (struct blk_bench *)pmembench_get_priv(bench);
 	struct blk_args *bargs = (struct blk_args *)args->opts;
 
-	bworker->seed = rand_r(&bargs->seed);
+	bworker->seed = (unsigned)rand_r(&bargs->seed);
 
 	bworker->buff = (unsigned char *)malloc(args->dsize);
 	if (!bworker->buff) {
@@ -224,7 +228,7 @@ blk_init_worker(struct benchmark *bench, const struct benchmark_args *args,
 	}
 
 	/* fill buffer with some random data */
-	memset(bworker->buff, bworker->seed, args->dsize);
+	memset(bworker->buff, (int)bworker->seed, args->dsize);
 
 	bworker->blocks = (off_t *)malloc(sizeof(*bworker->blocks) *
 					  args->n_ops_per_thread);
@@ -236,12 +240,14 @@ blk_init_worker(struct benchmark *bench, const struct benchmark_args *args,
 	if (bargs->rand) {
 		for (size_t i = 0; i < args->n_ops_per_thread; i++) {
 			bworker->blocks[i] =
-				worker->index * bb->blocks_per_thread +
-				rand_r(&bworker->seed) % bb->blocks_per_thread;
+				(off_t)(worker->index * bb->blocks_per_thread +
+					(size_t)rand_r(&bworker->seed) %
+						bb->blocks_per_thread);
+			assert(bworker->blocks[i] >= 0);
 		}
 	} else {
 		for (size_t i = 0; i < args->n_ops_per_thread; i++)
-			bworker->blocks[i] = i % bb->blocks_per_thread;
+			bworker->blocks[i] = (off_t)(i % bb->blocks_per_thread);
 	}
 
 	worker->priv = bworker;
@@ -490,7 +496,7 @@ blk_costructor(void)
 	blk_clo[4].type_uint.size = clo_field_size(struct blk_args, fsize);
 	blk_clo[4].type_uint.base = CLO_INT_BASE_DEC;
 	blk_clo[4].type_uint.min = 0;
-	blk_clo[4].type_uint.max = ~0;
+	blk_clo[4].type_uint.max = UINT64_MAX;
 
 	blk_read_info.name = "blk_read";
 	blk_read_info.brief = "Benchmark for blk_read() operation";

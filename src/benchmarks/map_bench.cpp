@@ -152,8 +152,8 @@ mutex_unlock_nofail(pthread_mutex_t *lock)
 static uint64_t
 get_key(unsigned *seed, uint64_t max_key)
 {
-	unsigned key_lo = rand_r(seed);
-	unsigned key_hi = rand_r(seed);
+	unsigned key_lo = (unsigned)rand_r(seed);
+	unsigned key_hi = (unsigned)rand_r(seed);
 	uint64_t key = (((uint64_t)key_hi) << 32) | ((uint64_t)key_lo);
 
 	if (max_key)

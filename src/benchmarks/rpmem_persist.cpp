@@ -54,7 +54,7 @@
 #define CL_ALIGNMENT 64
 #define MAX_OFFSET (CL_ALIGNMENT - 1)
 
-#define ALIGN_CL(x) (((x) + CL_ALIGNMENT - 1) & ~(CL_ALIGNMENT - 1))
+#define ALIGN_CL(x) (((x) + CL_ALIGNMENT - 1) & (size_t)(~(CL_ALIGNMENT - 1)))
 /*
  * rpmem_args -- benchmark specific command line options
  */
@@ -150,7 +150,7 @@ init_offsets(const struct benchmark_args *args, struct rpmem_bench *mb,
 					break;
 				case OP_MODE_RAND:
 					chunk_idx = i * args->n_ops_per_thread +
-						rand_r(&seed) %
+						(size_t)rand_r(&seed) %
 							args->n_ops_per_thread;
 					break;
 				case OP_MODE_SEQ_WRAP:
@@ -159,7 +159,8 @@ init_offsets(const struct benchmark_args *args, struct rpmem_bench *mb,
 					break;
 				case OP_MODE_RAND_WRAP:
 					chunk_idx = i * n_ops_by_size +
-						rand_r(&seed) % n_ops_by_size;
+						(size_t)rand_r(&seed) %
+							n_ops_by_size;
 					break;
 				default:
 					assert(0);
@@ -242,7 +243,7 @@ rpmem_op(struct benchmark *bench, struct operation_info *info)
 static int
 rpmem_map_file(const char *path, struct rpmem_bench *mb, size_t size)
 {
-	int mode;
+	mode_t mode;
 #ifndef _WIN32
 	mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 #else

@@ -120,6 +120,8 @@ CXXFLAGS += -std=c++0x
 CXXFLAGS += -Wno-invalid-offsetof
 CXXFLAGS += -Wpointer-arith
 CXXFLAGS += -Wunused-macros
+CXXFLAGS += -Wsign-compare
+CXXFLAGS += -Wsign-conversion
 CXXFLAGS += -pthread
 CXXFLAGS += -I../include
 CXXFLAGS += -I../libpmemobj

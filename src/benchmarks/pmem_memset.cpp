@@ -133,7 +133,8 @@ init_offsets(const struct benchmark_args *args, struct memset_bench *mb,
 					o = i * n_ops + j;
 					break;
 				case OP_MODE_RAND:
-					o = i * n_ops + rand_r(&seed) % n_ops;
+					o = i * n_ops +
+						(uint64_t)rand_r(&seed) % n_ops;
 					break;
 				default:
 					assert(0);
