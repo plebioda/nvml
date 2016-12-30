@@ -322,7 +322,7 @@ libpmem_memcpy_persist(void *dest, void *source, size_t len)
  * depending on the operation mode and type.
  */
 static int
-assign_size(struct pmem_bench *pmb, struct benchmark_args *args,
+assign_size(struct pmem_bench *pmb, const struct benchmark_args *args,
 	    enum operation_type *op_type)
 {
 	*op_type = parse_op_type(pmb->pargs->operation);
@@ -376,7 +376,7 @@ assign_size(struct pmem_bench *pmb, struct benchmark_args *args,
  * Parses command line arguments, allocates persistent memory, and maps it.
  */
 static int
-pmem_memcpy_init(struct benchmark *bench, struct benchmark_args *args)
+pmem_memcpy_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);
@@ -509,7 +509,7 @@ pmem_memcpy_operation(struct benchmark *bench, struct operation_info *info)
  * pmem_memcpy_exit -- benchmark cleanup
  */
 static int
-pmem_memcpy_exit(struct benchmark *bench, struct benchmark_args *args)
+pmem_memcpy_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct pmem_bench *pmb = (struct pmem_bench *)pmembench_get_priv(bench);
 	munmap(pmb->pmem_addr, pmb->fsize);

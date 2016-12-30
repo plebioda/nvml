@@ -200,7 +200,7 @@ static operation realloc_op[2] = {vmem_realloc_op, stdlib_realloc_op};
  * vmem_create_pools -- use vmem_create to create pools
  */
 static int
-vmem_create_pools(struct vmem_bench *vb, struct benchmark_args *args)
+vmem_create_pools(struct vmem_bench *vb, const struct benchmark_args *args)
 {
 	unsigned i;
 	struct vmem_args *va = (struct vmem_args *)args->opts;
@@ -236,8 +236,8 @@ err:
  * random_values -- calculates values for random sizes
  */
 static void
-random_values(unsigned *alloc_sizes, struct benchmark_args *args, size_t max,
-	      size_t min)
+random_values(unsigned *alloc_sizes, const struct benchmark_args *args,
+	      size_t max, size_t min)
 {
 	unsigned i;
 	if (args->seed != 0)
@@ -262,7 +262,7 @@ static_values(unsigned *alloc_sizes, size_t dsize, unsigned nops)
  * vmem_do_warmup -- perform warm-up by malloc and free for every thread
  */
 static int
-vmem_do_warmup(struct vmem_bench *vb, struct benchmark_args *args)
+vmem_do_warmup(struct vmem_bench *vb, const struct benchmark_args *args)
 {
 	unsigned i;
 	uint64_t j;
@@ -329,7 +329,7 @@ vmem_mix_op(struct benchmark *bench, struct operation_info *info)
  * vmem_realloc benchmark when mix flag set to false
  */
 static int
-vmem_init_worker_alloc(struct vmem_bench *vb, struct benchmark_args *args,
+vmem_init_worker_alloc(struct vmem_bench *vb, const struct benchmark_args *args,
 		       struct worker_info *worker)
 {
 	size_t i;
@@ -349,7 +349,8 @@ out:
  * vmem_realloc benchmark when mix flag set to true
  */
 static int
-vmem_init_worker_alloc_mix(struct vmem_bench *vb, struct benchmark_args *args,
+vmem_init_worker_alloc_mix(struct vmem_bench *vb,
+			   const struct benchmark_args *args,
 			   struct worker_info *worker)
 {
 	unsigned i = 0;
@@ -390,7 +391,7 @@ out:
  * vmem_realloc benchmark
  */
 static int
-vmem_init_worker(struct benchmark *bench, struct benchmark_args *args,
+vmem_init_worker(struct benchmark *bench, const struct benchmark_args *args,
 		 struct worker_info *worker)
 {
 	struct vmem_args *va = (struct vmem_args *)args->opts;
@@ -404,7 +405,7 @@ vmem_init_worker(struct benchmark *bench, struct benchmark_args *args,
  * vmem_exit -- function for de-initialization benchmark
  */
 static int
-vmem_exit(struct benchmark *bench, struct benchmark_args *args)
+vmem_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	unsigned i;
 	struct vmem_bench *vb = (struct vmem_bench *)pmembench_get_priv(bench);
@@ -431,7 +432,7 @@ vmem_exit(struct benchmark *bench, struct benchmark_args *args)
  * vmem_exit_free -- frees worker with freeing elements
  */
 static int
-vmem_exit_free(struct benchmark *bench, struct benchmark_args *args)
+vmem_exit_free(struct benchmark *bench, const struct benchmark_args *args)
 {
 	unsigned i, j;
 	struct vmem_bench *vb = (struct vmem_bench *)pmembench_get_priv(bench);
@@ -447,7 +448,7 @@ vmem_exit_free(struct benchmark *bench, struct benchmark_args *args)
  * vmem_init -- function for initialization benchmark
  */
 static int
-vmem_init(struct benchmark *bench, struct benchmark_args *args)
+vmem_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	unsigned i, j;
 	assert(bench != NULL);
@@ -546,7 +547,7 @@ err:
  * vmem_realloc_init -- function for initialization vmem_realloc benchmark
  */
 static int
-vmem_realloc_init(struct benchmark *bench, struct benchmark_args *args)
+vmem_realloc_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	if (vmem_init(bench, args) != 0)
 		return -1;
@@ -580,7 +581,7 @@ err:
  * vmem_mix_init -- function for initialization vmem_realloc benchmark
  */
 static int
-vmem_mix_init(struct benchmark *bench, struct benchmark_args *args)
+vmem_mix_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	if (vmem_init(bench, args) != 0)
 		return -1;

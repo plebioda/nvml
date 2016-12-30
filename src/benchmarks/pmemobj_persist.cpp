@@ -164,7 +164,7 @@ obj_persist_op(struct benchmark *bench, struct operation_info *info)
  * obj_persist_init -- initialization function
  */
 static int
-obj_persist_init(struct benchmark *bench, struct benchmark_args *args)
+obj_persist_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);
@@ -243,7 +243,7 @@ free_ob:
  * obj_persist_exit -- benchmark cleanup function
  */
 static int
-obj_persist_exit(struct benchmark *bench, struct benchmark_args *args)
+obj_persist_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct obj_bench *ob = (struct obj_bench *)pmembench_get_priv(bench);
 

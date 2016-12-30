@@ -59,8 +59,8 @@ TOID_DECLARE(struct item, 0);
 struct obj_tx_bench;
 struct obj_tx_worker;
 
-int obj_tx_init(struct benchmark *bench, struct benchmark_args *args);
-int obj_tx_exit(struct benchmark *bench, struct benchmark_args *args);
+int obj_tx_init(struct benchmark *bench, const struct benchmark_args *args);
+int obj_tx_exit(struct benchmark *bench, const struct benchmark_args *args);
 
 /*
  * type_num_mode -- type number mode
@@ -416,8 +416,11 @@ add_range_nested_tx(struct obj_tx_bench *obj_bench, struct worker_info *worker,
 				obj_bench, obj_worker->tx_level);
 			ret = pmemobj_tx_add_range(obj_worker->oids[n_oid].oid,
 						   offset.off, offset.size);
+			assert(ret == 0);
+
 			obj_worker->tx_level++;
 			ret = add_range_nested_tx(obj_bench, worker, idx);
+			assert(ret == 0);
 		}
 	}
 	TX_ONABORT
@@ -506,7 +509,7 @@ obj_op_tx(struct obj_tx_bench *obj_bench, struct worker_info *worker,
 		if (obj_bench->op_mode != OP_MODE_ABORT &&
 		    obj_bench->op_mode != OP_MODE_ABORT_NESTED) {
 			fprintf(stderr, "transaction failed\n");
-			return -1;
+			ret = -1;
 		}
 	}
 	TX_END
@@ -740,7 +743,7 @@ obj_tx_op(struct benchmark *bench, struct operation_info *info)
  * for transactional benchmarks.
  */
 static int
-obj_tx_init_worker(struct benchmark *bench, struct benchmark_args *args,
+obj_tx_init_worker(struct benchmark *bench, const struct benchmark_args *args,
 		   struct worker_info *worker)
 {
 	struct obj_tx_bench *obj_bench =
@@ -756,7 +759,7 @@ obj_tx_init_worker(struct benchmark *bench, struct benchmark_args *args,
 	obj_worker->max_level = obj_bench->obj_args->nested;
 	if (obj_bench->lib_mode != LIB_MODE_DRAM)
 		obj_worker->oids = (TOID(struct item) *)calloc(
-			obj_bench->n_objs, sizeof(PMEMoid));
+			obj_bench->n_objs, sizeof(TOID(struct item)));
 	else
 		obj_worker->items =
 			(char **)calloc(obj_bench->n_objs, sizeof(char *));
@@ -775,7 +778,7 @@ obj_tx_init_worker(struct benchmark *bench, struct benchmark_args *args,
  */
 static int
 obj_tx_init_worker_alloc_obj(struct benchmark *bench,
-			     struct benchmark_args *args,
+			     const struct benchmark_args *args,
 			     struct worker_info *worker)
 {
 	unsigned i;
@@ -805,7 +808,7 @@ out:
  * obj_tx_exit_worker -- common part for the worker de-initialization.
  */
 static void
-obj_tx_exit_worker(struct benchmark *bench, struct benchmark_args *args,
+obj_tx_exit_worker(struct benchmark *bench, const struct benchmark_args *args,
 		   struct worker_info *worker)
 {
 	struct obj_tx_bench *obj_bench =
@@ -826,12 +829,16 @@ obj_tx_exit_worker(struct benchmark *bench, struct benchmark_args *args,
  * benchmark initialization.
  */
 static int
-obj_tx_add_range_init(struct benchmark *bench, struct benchmark_args *args)
+obj_tx_add_range_init(struct benchmark *bench,
+		      const struct benchmark_args *args)
 {
 	struct obj_tx_args *obj_args = (struct obj_tx_args *)args->opts;
 	obj_args->parse_mode = PARSE_OP_MODE_ADD_RANGE;
-	if (args->n_ops_per_thread > MAX_OPS)
-		args->n_ops_per_thread = MAX_OPS;
+	if (args->n_ops_per_thread > MAX_OPS) {
+		fprintf(stderr, "too many threads (max is %d)\n", MAX_OPS);
+		return -1;
+	}
+
 	if (obj_tx_init(bench, args) != 0)
 		return -1;
 
@@ -847,8 +854,10 @@ obj_tx_add_range_init(struct benchmark *bench, struct benchmark_args *args)
 	if (obj_bench->op_mode == OP_MODE_ONE_OBJ_RANGE ||
 	    obj_bench->op_mode == OP_MODE_ONE_OBJ_NESTED_RANGE) {
 		obj_bench->fn_off = off_range;
-		if (args->n_ops_per_thread > args->dsize)
-			args->dsize = args->n_ops_per_thread;
+		if (args->n_ops_per_thread > args->dsize) {
+			fprintf(stderr, "too many threads\n");
+			return -1;
+		}
 
 		obj_bench->sizes[0] = args->dsize;
 	}
@@ -863,7 +872,7 @@ obj_tx_add_range_init(struct benchmark *bench, struct benchmark_args *args)
  * obj_tx_free_init -- specific part of the obj_tx_free initialization.
  */
 static int
-obj_tx_free_init(struct benchmark *bench, struct benchmark_args *args)
+obj_tx_free_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	if (obj_tx_init(bench, args) != 0)
 		return -1;
@@ -890,7 +899,7 @@ obj_tx_free_init(struct benchmark *bench, struct benchmark_args *args)
  * obj_tx_alloc_init -- specific part of the obj_tx_alloc initialization.
  */
 static int
-obj_tx_alloc_init(struct benchmark *bench, struct benchmark_args *args)
+obj_tx_alloc_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	if (obj_tx_init(bench, args) != 0)
 		return -1;
@@ -915,7 +924,7 @@ obj_tx_alloc_init(struct benchmark *bench, struct benchmark_args *args)
  * obj_tx_realloc_init -- specific part of the obj_tx_realloc initialization.
  */
 static int
-obj_tx_realloc_init(struct benchmark *bench, struct benchmark_args *args)
+obj_tx_realloc_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	if (obj_tx_init(bench, args) != 0)
 		return -1;
@@ -939,7 +948,7 @@ obj_tx_realloc_init(struct benchmark *bench, struct benchmark_args *args)
  * variables and creates persistent pool.
  */
 int
-obj_tx_init(struct benchmark *bench, struct benchmark_args *args)
+obj_tx_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);
@@ -1049,7 +1058,7 @@ free_random_types:
  * benchmarks in their exit functions.
  */
 int
-obj_tx_exit(struct benchmark *bench, struct benchmark_args *args)
+obj_tx_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct obj_tx_bench *obj_bench =
 		(struct obj_tx_bench *)pmembench_get_priv(bench);
@@ -1067,7 +1076,7 @@ obj_tx_exit(struct benchmark *bench, struct benchmark_args *args)
  * benchmarks in their exit functions.
  */
 static int
-obj_tx_realloc_exit(struct benchmark *bench, struct benchmark_args *args)
+obj_tx_realloc_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct obj_tx_bench *obj_bench =
 		(struct obj_tx_bench *)pmembench_get_priv(bench);

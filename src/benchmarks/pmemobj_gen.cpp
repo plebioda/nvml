@@ -267,7 +267,7 @@ rand_sizes(size_t min, size_t max, size_t n_ops)
  * type_number for each object.
  */
 static int
-random_types(struct pobj_bench *bench_priv, struct benchmark_args *args)
+random_types(struct pobj_bench *bench_priv, const struct benchmark_args *args)
 {
 	bench_priv->random_types = (size_t *)malloc(
 		bench_priv->args_priv->n_objs * sizeof(size_t));
@@ -285,7 +285,7 @@ random_types(struct pobj_bench *bench_priv, struct benchmark_args *args)
  * Parses command line arguments, set variables and creates persistent pools.
  */
 static int
-pobj_init(struct benchmark *bench, struct benchmark_args *args)
+pobj_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	unsigned i = 0;
 	size_t psize;
@@ -442,7 +442,7 @@ free_bench_priv:
  * pobj_direct_init -- special part of pobj_direct benchmark initialization.
  */
 static int
-pobj_direct_init(struct benchmark *bench, struct benchmark_args *args)
+pobj_direct_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct pobj_args *pa = (struct pobj_args *)args->opts;
 	pa->n_objs = pa->one_obj ? 1 : args->n_ops_per_thread;
@@ -455,7 +455,7 @@ pobj_direct_init(struct benchmark *bench, struct benchmark_args *args)
  * pobj_exit -- common part for the benchmarks exit functions
  */
 static int
-pobj_exit(struct benchmark *bench, struct benchmark_args *args)
+pobj_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	size_t i;
 	struct pobj_bench *bench_priv =
@@ -480,7 +480,7 @@ pobj_exit(struct benchmark *bench, struct benchmark_args *args)
  * pobj_init_worker -- worker initialization
  */
 static int
-pobj_init_worker(struct benchmark *bench, struct benchmark_args *args,
+pobj_init_worker(struct benchmark *bench, const struct benchmark_args *args,
 		 struct worker_info *worker)
 {
 	size_t i, idx = worker->index;
@@ -556,7 +556,7 @@ pobj_open_op(struct benchmark *bench, struct operation_info *info)
  * pobj_free_worker -- worker exit function
  */
 static void
-pobj_free_worker(struct benchmark *bench, struct benchmark_args *args,
+pobj_free_worker(struct benchmark *bench, const struct benchmark_args *args,
 		 struct worker_info *worker)
 {
 	struct pobj_worker *pw = (struct pobj_worker *)worker->priv;

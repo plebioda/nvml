@@ -665,7 +665,7 @@ parse_benchmark_mode(const char *arg)
  * objects in the allocated memory and initializes them
  */
 static int
-locks_init(struct benchmark *bench, struct benchmark_args *args)
+locks_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);
@@ -741,7 +741,7 @@ err_free_mb:
  * locks_exit -- destroys allocated objects and release memory
  */
 static int
-locks_exit(struct benchmark *bench, struct benchmark_args *args)
+locks_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);

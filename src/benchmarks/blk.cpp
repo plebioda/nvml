@@ -52,7 +52,7 @@ struct blk_worker;
 /*
  * typedef for the worker function
  */
-typedef int (*worker_fn)(struct blk_bench *, struct benchmark_args *,
+typedef int (*worker_fn)(struct blk_bench *, const struct benchmark_args *,
 			 struct blk_worker *, off_t);
 
 /*
@@ -90,7 +90,7 @@ struct blk_worker {
  * blk_do_warmup -- perform warm-up by writing to each block
  */
 static int
-blk_do_warmup(struct blk_bench *bb, struct benchmark_args *args)
+blk_do_warmup(struct blk_bench *bb, const struct benchmark_args *args)
 {
 	struct blk_args *ba = (struct blk_args *)args->opts;
 	size_t lba;
@@ -128,7 +128,7 @@ out:
  * blk_read -- read function for pmemblk
  */
 static int
-blk_read(struct blk_bench *bb, struct benchmark_args *ba,
+blk_read(struct blk_bench *bb, const struct benchmark_args *ba,
 	 struct blk_worker *bworker, off_t off)
 {
 	if (pmemblk_read(bb->pbp, bworker->buff, off) < 0) {
@@ -142,7 +142,7 @@ blk_read(struct blk_bench *bb, struct benchmark_args *ba,
  * fileio_read -- read function for file io
  */
 static int
-fileio_read(struct blk_bench *bb, struct benchmark_args *ba,
+fileio_read(struct blk_bench *bb, const struct benchmark_args *ba,
 	    struct blk_worker *bworker, off_t off)
 {
 	off_t file_off = off * ba->dsize;
@@ -158,7 +158,7 @@ fileio_read(struct blk_bench *bb, struct benchmark_args *ba,
  * blk_write -- write function for pmemblk
  */
 static int
-blk_write(struct blk_bench *bb, struct benchmark_args *ba,
+blk_write(struct blk_bench *bb, const struct benchmark_args *ba,
 	  struct blk_worker *bworker, off_t off)
 {
 	if (pmemblk_write(bb->pbp, bworker->buff, off) < 0) {
@@ -172,7 +172,7 @@ blk_write(struct blk_bench *bb, struct benchmark_args *ba,
  * fileio_write -- write function for file io
  */
 static int
-fileio_write(struct blk_bench *bb, struct benchmark_args *ba,
+fileio_write(struct blk_bench *bb, const struct benchmark_args *ba,
 	     struct blk_worker *bworker, off_t off)
 {
 	off_t file_off = off * ba->dsize;
@@ -201,7 +201,7 @@ blk_operation(struct benchmark *bench, struct operation_info *info)
  * blk_init_worker -- initialize worker
  */
 static int
-blk_init_worker(struct benchmark *bench, struct benchmark_args *args,
+blk_init_worker(struct benchmark *bench, const struct benchmark_args *args,
 		struct worker_info *worker)
 {
 	struct blk_worker *bworker =
@@ -258,7 +258,7 @@ err_buff:
  * blk_free_worker -- cleanup worker
  */
 static void
-blk_free_worker(struct benchmark *bench, struct benchmark_args *args,
+blk_free_worker(struct benchmark *bench, const struct benchmark_args *args,
 		struct worker_info *worker)
 {
 	struct blk_worker *bworker = (struct blk_worker *)worker->priv;
@@ -271,7 +271,7 @@ blk_free_worker(struct benchmark *bench, struct benchmark_args *args,
  * blk_init -- function for initialization benchmark
  */
 static int
-blk_init(struct blk_bench *bb, struct benchmark_args *args)
+blk_init(struct blk_bench *bb, const struct benchmark_args *args)
 {
 	struct blk_args *ba = (struct blk_args *)args->opts;
 	assert(ba != NULL);
@@ -353,7 +353,7 @@ out_close:
  * blk_read_init - function for initializing blk_read benchmark
  */
 static int
-blk_read_init(struct benchmark *bench, struct benchmark_args *args)
+blk_read_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);
@@ -385,7 +385,7 @@ blk_read_init(struct benchmark *bench, struct benchmark_args *args)
  * blk_write_init - function for initializing blk_write benchmark
  */
 static int
-blk_write_init(struct benchmark *bench, struct benchmark_args *args)
+blk_write_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	assert(bench != NULL);
 	assert(args != NULL);
@@ -418,7 +418,7 @@ blk_write_init(struct benchmark *bench, struct benchmark_args *args)
  * blk_exit -- function for de-initialization benchmark
  */
 static int
-blk_exit(struct benchmark *bench, struct benchmark_args *args)
+blk_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct blk_bench *bb = (struct blk_bench *)pmembench_get_priv(bench);
 	struct blk_args *ba = (struct blk_args *)args->opts;

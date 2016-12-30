@@ -323,7 +323,7 @@ log_read_op(struct benchmark *bench, struct operation_info *info)
  * log_init_worker -- init benchmark worker
  */
 static int
-log_init_worker(struct benchmark *bench, struct benchmark_args *args,
+log_init_worker(struct benchmark *bench, const struct benchmark_args *args,
 		struct worker_info *worker)
 {
 	int ret = 0;
@@ -367,6 +367,8 @@ log_init_worker(struct benchmark *bench, struct benchmark_args *args,
 
 		/* each vector element has its own random size */
 		uint64_t n_sizes = args->n_ops_per_thread * lb->args->vec_size;
+		assert(n_sizes > 0);
+
 		worker_info->rand_sizes = (size_t *)malloc(
 			n_sizes * sizeof(*worker_info->rand_sizes));
 		if (!worker_info->rand_sizes) {
@@ -435,7 +437,7 @@ err_free_worker_info:
  * log_free_worker -- cleanup benchmark worker
  */
 static void
-log_free_worker(struct benchmark *bench, struct benchmark_args *args,
+log_free_worker(struct benchmark *bench, const struct benchmark_args *args,
 		struct worker_info *worker)
 {
 
@@ -454,7 +456,7 @@ log_free_worker(struct benchmark *bench, struct benchmark_args *args,
  * log_init -- benchmark initialization function
  */
 static int
-log_init(struct benchmark *bench, struct benchmark_args *args)
+log_init(struct benchmark *bench, const struct benchmark_args *args)
 {
 	int ret = 0;
 	assert(bench);
@@ -471,9 +473,6 @@ log_init(struct benchmark *bench, struct benchmark_args *args)
 
 	lb->args = (struct prog_args *)args->opts;
 	lb->args->el_size = args->dsize;
-
-	if (lb->args->vec_size == 0)
-		lb->args->vec_size = 1;
 
 	if (lb->args->rand && lb->args->min_size > lb->args->el_size) {
 		errno = EINVAL;
@@ -565,7 +564,7 @@ err_free_lb:
  * log_exit -- cleanup benchmark
  */
 static int
-log_exit(struct benchmark *bench, struct benchmark_args *args)
+log_exit(struct benchmark *bench, const struct benchmark_args *args)
 {
 	struct log_bench *lb = (struct log_bench *)pmembench_get_priv(bench);
 
