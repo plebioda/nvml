@@ -684,7 +684,6 @@ off_range(struct obj_tx_bench *obj_bench, size_t idx)
 static size_t *
 rand_values(size_t min, size_t max, size_t n_ops)
 {
-	size_t size = max - min;
 	size_t *sizes = (size_t *)calloc(n_ops, sizeof(size_t));
 	if (sizes == NULL) {
 		perror("calloc");
@@ -699,7 +698,7 @@ rand_values(size_t min, size_t max, size_t n_ops)
 			return NULL;
 		}
 		for (size_t i = 0; i < n_ops; i++)
-			sizes[i] = (rand() % size) + min;
+			sizes[i] = rrand(max, min);
 	}
 	return sizes;
 }

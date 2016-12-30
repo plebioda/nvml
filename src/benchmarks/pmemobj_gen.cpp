@@ -257,7 +257,7 @@ rand_sizes(size_t min, size_t max, size_t n_ops)
 		return NULL;
 	}
 	for (size_t i = 0; i < n_ops; i++) {
-		rand_sizes[i] = RRAND(max, min);
+		rand_sizes[i] = rrand(max, min);
 	}
 	return rand_sizes;
 }
@@ -276,7 +276,7 @@ random_types(struct pobj_bench *bench_priv, const struct benchmark_args *args)
 		return -1;
 	}
 	for (size_t i = 0; i < bench_priv->args_priv->n_objs; i++)
-		bench_priv->random_types[i] = rand() % UINT32_MAX;
+		bench_priv->random_types[i] = rrand(UINT32_MAX, 0U);
 	return 0;
 }
 

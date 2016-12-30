@@ -231,7 +231,7 @@ clo_parse_single_uint(struct benchmark_clo *clo, const char *arg, void *ptr)
 		return -1;
 	}
 
-	uint64_t tmax = ~0 >> (64 - 8 * clo->type_uint.size);
+	uint64_t tmax = UINT64_MAX >> (64 - 8 * clo->type_uint.size);
 	uint64_t tmin = 0;
 
 	tmax = min(tmax, clo->type_uint.max);
@@ -255,7 +255,7 @@ clo_eval_range_uint(struct benchmark_clo *clo, void *first, void *step,
 {
 	uint64_t curr = *(uint64_t *)first;
 	uint64_t l = *(uint64_t *)last;
-	int64_t s = *(int64_t *)step;
+	uint64_t s = *(uint64_t *)step;
 
 	while (1) {
 		clo_vec_vlist_add(vlist, &curr, clo->type_uint.size);
@@ -300,7 +300,8 @@ clo_eval_range_int(struct benchmark_clo *clo, void *first, void *step,
 {
 	int64_t curr = *(int64_t *)first;
 	int64_t l = *(int64_t *)last;
-	uint64_t s = *(uint64_t *)step;
+	int64_t s = *(int64_t *)step;
+	assert(s > 0);
 
 	while (1) {
 		clo_vec_vlist_add(vlist, &curr, clo->type_int.size);
@@ -787,7 +788,7 @@ clo_set_defaults(struct benchmark_clo *clos, size_t nclo,
  */
 int
 benchmark_clo_parse(int argc, char *argv[], struct benchmark_clo *clos,
-		    ssize_t nclos, struct clo_vec *clovec)
+		    size_t nclos, struct clo_vec *clovec)
 {
 	char *optstr;
 	struct option *options;
@@ -806,7 +807,8 @@ benchmark_clo_parse(int argc, char *argv[], struct benchmark_clo *clos,
 		if (opt) {
 			clo = clo_get_by_short(clos, nclos, opt);
 		} else {
-			assert(optindex < nclos);
+			assert(optindex >= 0);
+			assert((size_t)optindex < nclos);
 			clo = &clos[optindex];
 		}
 		if (!clo) {
@@ -901,7 +903,7 @@ benchmark_clo_parse_scenario(struct scenario *scenario,
 int
 benchmark_override_clos_in_scenario(struct scenario *scenario, int argc,
 				    char *argv[], struct benchmark_clo *clos,
-				    int nclos)
+				    size_t nclos)
 {
 	char *optstr;
 	struct option *options;
@@ -921,7 +923,8 @@ benchmark_override_clos_in_scenario(struct scenario *scenario, int argc,
 		if (opt) {
 			clo = clo_get_by_short(clos, nclos, opt);
 		} else {
-			assert(optindex < nclos);
+			assert(optindex >= 0);
+			assert((size_t)optindex < nclos);
 			clo = &clos[optindex];
 		}
 		if (!clo) {

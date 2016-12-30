@@ -69,7 +69,13 @@
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
-#define RRAND(max, min) (rand() % ((max) - (min)) + (min))
+
+template <typename T>
+T rrand(T max, T min)
+{
+	T r = static_cast<T>(rand());
+	return (r % (max - min)) + min;
+}
 
 struct benchmark;
 

@@ -268,7 +268,7 @@ pmembench_costructor(void)
 		clo_field_size(struct benchmark_args, seed);
 	pmembench_clos[6].type_uint.base = CLO_INT_BASE_DEC;
 	pmembench_clos[6].type_uint.min = 0;
-	pmembench_clos[6].type_uint.max = ~0;
+	pmembench_clos[6].type_uint.max = UINT64_MAX;
 
 	pmembench_clos[7].opt_short = 'r';
 	pmembench_clos[7].opt_long = "repeats";

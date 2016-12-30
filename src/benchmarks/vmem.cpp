@@ -43,7 +43,6 @@
 #define DIR_MODE 0700
 #define MAX_POOLS 8
 #define FACTOR 2
-#define RRAND(max, min) (rand() % ((max) - (min)) + (min))
 
 struct vmem_bench;
 typedef int (*operation)(struct vmem_bench *vb, unsigned worker_idx,
@@ -57,7 +56,7 @@ struct vmem_args {
 	bool no_warmup;       /* do not perform warmup */
 	bool pool_per_thread; /* create single pool per thread */
 	ssize_t min_size;     /* size of min allocation in range mode */
-	ssize_t rsize;	/* size of reallocation */
+	size_t rsize;	/* size of reallocation */
 	ssize_t min_rsize;    /* size of min reallocation in range mode */
 
 	/* perform operation on object allocated by other thread */
@@ -226,7 +225,7 @@ vmem_create_pools(struct vmem_bench *vb, const struct benchmark_args *args)
 	}
 	return 0;
 err:
-	for (int j = i - 1; j >= 0; j--)
+	for (unsigned j = 0; j < i; j++)
 		vmem_delete(vb->pools[j]);
 	free(vb->pools);
 	return -1;
@@ -244,7 +243,7 @@ random_values(unsigned *alloc_sizes, const struct benchmark_args *args,
 		srand(args->seed);
 
 	for (i = 0; i < args->n_ops_per_thread; i++)
-		alloc_sizes[i] = RRAND(max - min, min);
+		alloc_sizes[i] = rrand(max - min, min);
 }
 
 /*
@@ -511,11 +510,13 @@ vmem_init(struct benchmark *bench, const struct benchmark_args *args)
 		perror("malloc");
 		goto err_free_buf;
 	}
-	if (vb->rand_alloc)
-		random_values(vb->alloc_sizes, args, args->dsize, va->min_size);
-	else
+	if (vb->rand_alloc) {
+		assert(va->min_size >= 0);
+		random_values(vb->alloc_sizes, args, args->dsize, (size_t)va->min_size);
+	} else {
 		static_values(vb->alloc_sizes, args->dsize,
 			      args->n_ops_per_thread);
+	}
 
 	if (!va->stdlib_alloc && vmem_create_pools(vb, args) != 0)
 		goto err_free_sizes;
@@ -554,9 +555,9 @@ vmem_realloc_init(struct benchmark *bench, const struct benchmark_args *args)
 
 	struct vmem_bench *vb = (struct vmem_bench *)pmembench_get_priv(bench);
 	struct vmem_args *va = (struct vmem_args *)args->opts;
-	vb->rand_realloc = va->min_rsize != -1;
+	vb->rand_realloc = va->min_rsize >= 0;
 
-	if (vb->rand_realloc && va->min_rsize > va->rsize) {
+	if (vb->rand_realloc && (size_t)va->min_rsize > va->rsize) {
 		fprintf(stderr, "invalid reallocation size\n");
 		goto err;
 	}
@@ -567,7 +568,7 @@ vmem_realloc_init(struct benchmark *bench, const struct benchmark_args *args)
 	}
 	if (vb->rand_realloc)
 		random_values(vb->realloc_sizes, args, va->rsize,
-			      va->min_rsize);
+			      (size_t)va->min_rsize);
 	else
 		static_values(vb->realloc_sizes, va->rsize,
 			      args->n_ops_per_thread);
@@ -586,7 +587,9 @@ vmem_mix_init(struct benchmark *bench, const struct benchmark_args *args)
 	if (vmem_init(bench, args) != 0)
 		return -1;
 
-	unsigned i, idx, tmp;
+	unsigned i;
+	size_t idx;
+	unsigned tmp;
 	struct vmem_bench *vb = (struct vmem_bench *)pmembench_get_priv(bench);
 	if ((vb->mix_ops = (unsigned *)calloc(args->n_ops_per_thread,
 					      sizeof(unsigned))) == NULL) {
@@ -600,7 +603,7 @@ vmem_mix_init(struct benchmark *bench, const struct benchmark_args *args)
 		srand(args->seed);
 
 	for (i = 1; i < args->n_ops_per_thread; i++) {
-		idx = RRAND(args->n_ops_per_thread - 1, 0);
+		idx = rrand(args->n_ops_per_thread - 1, (size_t)0);
 		tmp = vb->mix_ops[idx];
 		vb->mix_ops[i] = vb->mix_ops[idx];
 		vb->mix_ops[idx] = tmp;
@@ -647,7 +650,7 @@ vmem_persist_costructor(void)
 	vmem_clo[3].def = "-1";
 	vmem_clo[3].type_int.size = clo_field_size(struct vmem_args, min_size);
 	vmem_clo[3].type_int.base = CLO_INT_BASE_DEC;
-	vmem_clo[3].type_int.min = (-1);
+	vmem_clo[3].type_int.min = -1;
 	vmem_clo[3].type_int.max = INT_MAX;
 
 	/*
@@ -675,7 +678,7 @@ vmem_persist_costructor(void)
 	vmem_clo[5].type_uint.size = clo_field_size(struct vmem_args, rsize);
 	vmem_clo[5].type_uint.base = CLO_INT_BASE_DEC;
 	vmem_clo[5].type_uint.min = 0;
-	vmem_clo[5].type_uint.max = ~0;
+	vmem_clo[5].type_uint.max = SIZE_MAX;
 
 	vmem_clo[6].opt_short = 'R';
 	vmem_clo[6].opt_long = "realloc-min";

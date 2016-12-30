@@ -57,7 +57,7 @@
 struct prog_args {
 	unsigned seed;   /* seed for pseudo-random generator */
 	bool rand;       /* use random numbers */
-	int vec_size;    /* vector size */
+	size_t vec_size; /* vector size */
 	size_t el_size;  /* size of single append */
 	size_t min_size; /* minimum size for random mode */
 	bool no_warmup;  /* don't do warmup */
@@ -100,7 +100,7 @@ static int
 do_warmup(struct log_bench *lb, size_t nops)
 {
 	int ret = 0;
-	size_t bsize = lb->args->vec_size * lb->args->el_size;
+	size_t bsize = (size_t)lb->args->vec_size * lb->args->el_size;
 	char *buf = (char *)calloc(1, bsize);
 	if (!buf) {
 		perror("calloc");
@@ -265,9 +265,10 @@ log_process_data(const void *buf, size_t len, void *arg)
  * fileio_read -- perform single fileio read
  */
 static int
-fileio_read(int fd, ssize_t len, struct log_worker_info *worker_info)
+fileio_read(int fd, size_t len, struct log_worker_info *worker_info)
 {
-	ssize_t left = worker_info->buf_size - worker_info->buf_ptr;
+	assert(worker_info->buf_size >= worker_info->buf_ptr);
+	size_t left = worker_info->buf_size - worker_info->buf_ptr;
 	if (len > left) {
 		worker_info->buf_ptr = 0;
 		left = worker_info->buf_size;
@@ -276,12 +277,13 @@ fileio_read(int fd, ssize_t len, struct log_worker_info *worker_info)
 	len = len < left ? len : left;
 	assert(len <= left);
 
-	size_t off = worker_info->buf_ptr;
+	off_t off = (off_t)worker_info->buf_ptr;
 	void *buff = &worker_info->buf[off];
-	if ((len = pread(fd, buff, len, off)) < 0)
+	ssize_t ret;
+	if ((ret = pread(fd, buff, len, off)) < 0)
 		return -1;
 
-	worker_info->buf_ptr += len;
+	worker_info->buf_ptr += (size_t)ret;
 
 	return 1;
 }
@@ -401,7 +403,7 @@ log_init_worker(struct benchmark *bench, const struct benchmark_args *args,
 	for (size_t n = 0; n < args->n_ops_per_thread; n++) {
 		size_t buf_ptr = 0;
 		size_t vec_off = n * lb->args->vec_size;
-		for (int i = 0; i < lb->args->vec_size; ++i) {
+		for (size_t i = 0; i < lb->args->vec_size; ++i) {
 			size_t el_size = lb->args->rand
 				? worker_info->rand_sizes[i_size++]
 				: lb->args->el_size;
@@ -527,7 +529,8 @@ log_init(struct benchmark *bench, const struct benchmark_args *args)
 		}
 
 		/* allocate the pmem */
-		if ((errno = posix_fallocate(lb->fd, 0, lb->psize)) != 0) {
+		if ((errno = posix_fallocate(lb->fd, 0, (off_t)lb->psize)) !=
+		    0) {
 			perror("posix_fallocate");
 			ret = -1;
 			goto err_close;

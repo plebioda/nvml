@@ -419,7 +419,7 @@ pmem_memcpy_init(struct benchmark *bench, const struct benchmark_args *args)
 	}
 
 	for (size_t i = 0; i < pmb->n_rand_offsets; ++i)
-		pmb->rand_offsets[i] = rand() % args->n_ops_per_thread;
+		pmb->rand_offsets[i] = (size_t)rand() % args->n_ops_per_thread;
 
 	/* create a pmem file and memory map it */
 	if ((pmb->pmem_addr = (unsigned char *)pmem_map_file(

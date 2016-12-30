@@ -119,6 +119,8 @@ CXXFLAGS += -Werror
 CXXFLAGS += -std=c++11
 CXXFLAGS += -Wpointer-arith
 CXXFLAGS += -Wunused-macros
+CXXFLAGS += -Wsign-compare
+CXXFLAGS += -Wsign-conversion
 CXXFLAGS += -pthread
 CXXFLAGS += -I../include
 CXXFLAGS += -I../libpmemobj

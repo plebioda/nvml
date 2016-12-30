@@ -134,7 +134,7 @@ mode_stat(struct pmem_bench *pmb, uint64_t index)
 static uint64_t
 mode_rand(struct pmem_bench *pmb, uint64_t index)
 {
-	return rand() % pmb->n_offsets;
+	return (size_t)rand() % pmb->n_offsets;
 }
 
 /*
@@ -162,9 +162,10 @@ static struct op_mode modes[] = {
 static int
 parse_op_mode(const char *arg)
 {
+	assert(MODES < INT_MAX);
 	for (unsigned i = 0; i < MODES; i++) {
 		if (strcmp(arg, modes[i].mode) == 0)
-			return i;
+			return (int)i;
 	}
 	return -1;
 }
@@ -355,9 +356,10 @@ static struct op ops[] = {
 static int
 parse_op_type(const char *arg)
 {
+	assert(NOPS < INT_MAX);
 	for (unsigned i = 0; i < NOPS; i++) {
 		if (strcmp(arg, ops[i].opname) == 0)
-			return i;
+			return (int)i;
 	}
 	return -1;
 }

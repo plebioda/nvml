@@ -498,7 +498,7 @@ random_positions(void)
 
 	size_t rmax = ARRAY_SIZE(rand_positions);
 	for (size_t i = 0; i < obj_bench.max_len; i++) {
-		size_t id = RRAND(rmax, 0);
+		size_t id = rrand<size_t>(rmax, 0);
 		positions[i] = rand_positions[id];
 	}
 
@@ -527,7 +527,7 @@ random_values(size_t min, size_t max, size_t n_ops, size_t min_range)
 			return NULL;
 		}
 		for (size_t i = 0; i < n_ops; i++)
-			randoms[i] = RRAND(max, min);
+			randoms[i] = rrand(max, min);
 	}
 	return randoms;
 }
