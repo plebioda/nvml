@@ -102,7 +102,7 @@ check_files\
 	$DIR/rep.part1\
 	$DIR/rep.part2
 
-expect_normal_exit $PMEMPOOL$EXESUFFIX rm -fv\
+expect_normal_exit $PMEMPOOL$EXESUFFIX rm -fvl\
 	$DIR/pool.log\
 	$DIR/pool.blk\
 	$DIR/pool.obj\
