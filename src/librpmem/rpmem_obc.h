@@ -58,5 +58,8 @@ int rpmem_obc_open(struct rpmem_obc *rpc,
 		const struct rpmem_req_attr *req,
 		struct rpmem_resp_attr *res,
 		struct rpmem_pool_attr *pool_attr);
+int rpmem_obc_create(struct rpmem_obc *rpc,
+		const char *pool_desc,
+		const struct rpmem_pool_attr *pool_attr);
 int rpmem_obc_remove(struct rpmem_obc *rpc, const char *pool_desc);
 int rpmem_obc_close(struct rpmem_obc *rpc);

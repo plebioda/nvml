@@ -279,6 +279,7 @@ static rpmemd_obc_process_fn rpmemd_obc_process_cb[] = {
 	[RPMEM_MSG_TYPE_CREATE]	= rpmemd_obc_process_create,
 	[RPMEM_MSG_TYPE_OPEN]	= rpmemd_obc_process_open,
 	[RPMEM_MSG_TYPE_CLOSE]	= rpmemd_obc_process_close,
+	[RPMEM_MSG_TYPE_UPDATE_ATTR] = /*XXX*/
 };
 
 /*

@@ -59,6 +59,8 @@ enum rpmem_msg_type {
 	RPMEM_MSG_TYPE_OPEN_RESP	= 4, /* open request response */
 	RPMEM_MSG_TYPE_CLOSE		= 5, /* close request */
 	RPMEM_MSG_TYPE_CLOSE_RESP	= 6, /* close request response */
+	RPMEM_MSG_TYPE_SET_ATTR,
+	RPMEM_MSG_TYPE_SET_ATTR_RESP,
 
 	MAX_RPMEM_MSG_TYPE,
 };
@@ -125,6 +127,18 @@ struct rpmem_msg_create {
 	uint32_t provider;		/* provider */
 	struct rpmem_pool_attr pool_attr;	/* pool attributes */
 	struct rpmem_msg_pool_desc pool_desc;	/* pool descriptor */
+} PACKED;
+
+struct rpmem_msg_update_attr {
+	struct rpmem_msg_hdr hdr;	/* message header */
+	uint16_t major;			/* protocol version major number */
+	uint16_t minor;			/* protocol version minor number */
+	struct rpmem_pool_attr pool_attr;	/* pool attributes */
+	struct rpmem_msg_pool_desc pool_desc;	/* pool descriptor */
+} PACKED;
+
+struct rpmem_msg_update_attr_resp {
+	struct rpmem_msg_hdr_resp hdr;	/* message header */
 } PACKED;
 
 /*
@@ -275,6 +289,11 @@ static inline void
 rpmem_hton_msg_hdr_resp(struct rpmem_msg_hdr_resp *hdrp)
 {
 	rpmem_ntoh_msg_hdr_resp(hdrp);
+}
+static inline void
+rpmem_ntoh_msg_update_attr(struct rpmem_msg_create *msg)
+{
+	/*XXX*/
 }
 
 /*
