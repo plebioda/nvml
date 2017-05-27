@@ -1124,8 +1124,9 @@ rpmemd_fip_accept(struct rpmemd_fip *fip, int timeout)
 	uint32_t event;
 	unsigned nreq = 0; /* number of connection requests */
 	unsigned ncon = 0; /* number of connected endpoints */
+	int connecting = 1;
 
-	while (nreq < fip->nlanes || ncon < fip->nlanes) {
+	while (connecting && (nreq < fip->nlanes || ncon < fip->nlanes)) {
 		ret = rpmem_fip_read_eq(fip->eq, &entry,
 				&event, timeout);
 		if (ret)
@@ -1141,6 +1142,9 @@ rpmemd_fip_accept(struct rpmemd_fip *fip, int timeout)
 			break;
 		case FI_CONNECTED:
 			ncon++;
+			break;
+		case FI_SHUTDOWN:
+			connecting = 0;
 			break;
 		default:
 			RPMEMD_ERR("unexpected event received (%u)", event);
