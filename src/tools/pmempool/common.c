@@ -48,6 +48,7 @@
 #include <ctype.h>
 #include <assert.h>
 #include <getopt.h>
+#define __USE_UNIX98	/* for pread/pwrite */
 #include <unistd.h>
 #include <endian.h>
 

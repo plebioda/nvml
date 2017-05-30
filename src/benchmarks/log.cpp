@@ -39,6 +39,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
+#define __USE_UNIX98	/* for pread/pwrite */
 #include <unistd.h>
 
 #include "benchmark.hpp"

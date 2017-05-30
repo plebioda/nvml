@@ -45,6 +45,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <pthread.h>
+#define __USE_UNIX98	/* for pread/pwrite */
 #include <unistd.h>
 
 struct blk_bench;

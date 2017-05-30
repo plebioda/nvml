@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <sys/mman.h>
+#define __USE_UNIX98	/* for pread/pwrite */
 #include <unistd.h>
 #include <fcntl.h>
 #include <endian.h>
