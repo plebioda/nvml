@@ -44,12 +44,20 @@
 
 struct redo_ctx;
 
+#define	REDO_NFLAGS	(256*8)
+#define REDO_NFLAGS_N	(REDO_NFLAGS / 8)
+
 /*
  * redo_log -- redo log entry
  */
-struct redo_log {
+struct redo_log_entry {
 	uint64_t offset;	/* offset with finish flag */
 	uint64_t value;
+};
+
+struct redo_log {
+	uint8_t flag[REDO_NFLAGS_N];
+	struct redo_log_entry entries[];
 };
 
 typedef int (*redo_check_offset_fn)(void *ctx, uint64_t offset);

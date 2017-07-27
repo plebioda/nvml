@@ -51,7 +51,7 @@
  */
 #define ALLOC_REDO_LOG_SIZE 10
 struct lane_alloc_layout {
-	struct redo_log redo[ALLOC_REDO_LOG_SIZE];
+	struct redo_log redo;
 };
 
 int pmalloc_operation(struct palloc_heap *heap,

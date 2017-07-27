@@ -45,7 +45,7 @@
  * Finish flag at the least significant bit
  */
 #define REDO_FINISH_FLAG	((uint64_t)1<<0)
-#define REDO_FLAG_MASK		(~REDO_FINISH_FLAG)
+// #define REDO_FLAG_MASK		(~REDO_FINISH_FLAG)
 
 struct redo_ctx {
 	void *base;
@@ -68,6 +68,7 @@ redo_log_config_new(void *base,
 		void *check_offset_ctx,
 		unsigned redo_num_entries)
 {
+	LOG(2, "redo_num_entries %u", redo_num_entries);
 	struct redo_ctx *cfg = Malloc(sizeof(*cfg));
 	if (!cfg) {
 		ERR("!can't create redo log config");
@@ -99,10 +100,8 @@ size_t
 redo_log_nflags(const struct redo_log *redo, size_t nentries)
 {
 	size_t ret = 0;
-	size_t i;
-
-	for (i = 0; i < nentries; i++) {
-		if (redo[i].offset & REDO_FINISH_FLAG)
+	for (size_t i = 0; i < REDO_NFLAGS; i++) {
+		if (util_isset(redo->flag, i))
 			ret++;
 	}
 
@@ -118,14 +117,13 @@ void
 redo_log_store(const struct redo_ctx *ctx, struct redo_log *redo, size_t index,
 		uint64_t offset, uint64_t value)
 {
-	LOG(15, "redo %p index %zu offset %" PRIu64 " value %" PRIu64,
-			redo, index, offset, value);
-
+	LOG(2, "redo %p index %zu offset %" PRIu64 " value %" PRIu64 "num entries %u",
+			redo, index, offset, value, ctx->redo_num_entries);
 	ASSERTeq(offset & REDO_FINISH_FLAG, 0);
 	ASSERT(index < ctx->redo_num_entries);
 
-	redo[index].offset = offset;
-	redo[index].value = value;
+	redo->entries[index].offset = offset;
+	redo->entries[index].value = value;
 }
 
 /*
@@ -138,19 +136,19 @@ redo_log_store_last(const struct redo_ctx *ctx, struct redo_log *redo,
 	LOG(15, "redo %p index %zu offset %" PRIu64 " value %" PRIu64,
 			redo, index, offset, value);
 
-	ASSERTeq(offset & REDO_FINISH_FLAG, 0);
 	ASSERT(index < ctx->redo_num_entries);
 	const struct pmem_ops *p_ops = &ctx->p_ops;
 
 	/* store value of last entry */
-	redo[index].value = value;
+	redo->entries[index].value = value;
+	redo->entries[index].offset = offset;
 
 	/* persist all redo log entries */
 	pmemops_persist(p_ops, redo, (index + 1) * sizeof(struct redo_log));
 
-	/* store and persist offset of last entry */
-	redo[index].offset = offset | REDO_FINISH_FLAG;
-	pmemops_persist(p_ops, &redo[index].offset, sizeof(redo[index].offset));
+	/* store and persist finish flag */
+	util_setbit(redo->flag, (uint32_t)index);
+	pmemops_persist(p_ops, &redo->flag[index/8], sizeof(redo->flag[index/8]));
 }
 
 /*
@@ -168,9 +166,9 @@ redo_log_set_last(const struct redo_ctx *ctx, struct redo_log *redo,
 	/* persist all redo log entries */
 	pmemops_persist(p_ops, redo, (index + 1) * sizeof(struct redo_log));
 
-	/* set finish flag of last entry and persist */
-	redo[index].offset |= REDO_FINISH_FLAG;
-	pmemops_persist(p_ops, &redo[index].offset, sizeof(redo[index].offset));
+	/* store and persist finish flag */
+	util_setbit(redo->flag, (uint32_t)index);
+	pmemops_persist(p_ops, &redo->flag[index/8], sizeof(redo->flag[index/8]));
 }
 
 /*
@@ -188,28 +186,29 @@ redo_log_process(const struct redo_ctx *ctx, struct redo_log *redo,
 	const struct pmem_ops *p_ops = &ctx->p_ops;
 
 	uint64_t *val;
-	while ((redo->offset & REDO_FINISH_FLAG) == 0) {
-		val = (uint64_t *)((uintptr_t)ctx->base + redo->offset);
+	size_t i = 0;
+	while (!util_isset(redo->flag, i)) {
+		val = (uint64_t *)((uintptr_t)ctx->base + redo->entries[i].offset);
 		VALGRIND_ADD_TO_TX(val, sizeof(*val));
-		*val = redo->value;
+		*val = redo->entries[i].value;
 		VALGRIND_REMOVE_FROM_TX(val, sizeof(*val));
 
 		pmemops_flush(p_ops, val, sizeof(uint64_t));
 
-		redo++;
+		i++;
 	}
 
-	uint64_t offset = redo->offset & REDO_FLAG_MASK;
+	uint64_t offset = redo->entries[i].offset;
 	val = (uint64_t *)((uintptr_t)ctx->base + offset);
 	VALGRIND_ADD_TO_TX(val, sizeof(*val));
-	*val = redo->value;
+	*val = redo->entries[i].value;
 	VALGRIND_REMOVE_FROM_TX(val, sizeof(*val));
 
 	pmemops_persist(p_ops, val, sizeof(uint64_t));
 
-	redo->offset = 0;
-
-	pmemops_persist(p_ops, &redo->offset, sizeof(redo->offset));
+	/* store and persist finish flag */
+	util_clrbit(redo->flag, (uint32_t)i);
+	pmemops_persist(p_ops, &redo->flag[i/8], sizeof(redo->flag[i/8]));
 }
 
 /*
@@ -251,16 +250,17 @@ redo_log_check(const struct redo_ctx *ctx, struct redo_log *redo,
 	if (nflags == 1) {
 		void *cctx = ctx->check_offset_ctx;
 
-		while ((redo->offset & REDO_FINISH_FLAG) == 0) {
-			if (!ctx->check_offset(cctx, redo->offset)) {
+		size_t i = 0;
+		while (!util_isset(redo->flag, i)) {
+			if (!ctx->check_offset(cctx, redo->entries[i].offset)) {
 				LOG(15, "redo %p invalid offset %" PRIu64,
-						redo, redo->offset);
+						redo, redo->entries[i].offset);
 				return -1;
 			}
-			redo++;
+			i++;
 		}
 
-		uint64_t offset = redo->offset & REDO_FLAG_MASK;
+		uint64_t offset = redo->entries[i].offset;
 		if (!ctx->check_offset(cctx, offset)) {
 			LOG(15, "redo %p invalid offset %" PRIu64,
 			    redo, offset);
@@ -277,7 +277,8 @@ redo_log_check(const struct redo_ctx *ctx, struct redo_log *redo,
 uint64_t
 redo_log_offset(const struct redo_log *redo)
 {
-	return redo->offset & REDO_FLAG_MASK;
+	/* XXX */
+	return 0;
 }
 
 /*
@@ -286,7 +287,8 @@ redo_log_offset(const struct redo_log *redo)
 int
 redo_log_is_last(const struct redo_log *redo)
 {
-	return redo->offset & REDO_FINISH_FLAG;
+	/* XXX */
+	return 0;
 }
 
 /*
