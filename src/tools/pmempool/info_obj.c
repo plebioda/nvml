@@ -80,7 +80,7 @@ lane_need_recovery_list(struct pmem_info *pip,
 	 * The list section needs recovery if redo log needs recovery or
 	 * object's offset or size are nonzero.
 	 */
-	return lane_need_recovery_redo(&section->redo[0], REDO_NUM_ENTRIES) ||
+	return lane_need_recovery_redo(&section->redo, REDO_NUM_ENTRIES) ||
 		section->obj_offset;
 }
 
@@ -95,7 +95,7 @@ lane_need_recovery_alloc(struct pmem_info *pip,
 		(struct lane_alloc_layout *)layout;
 
 	/* there is just a redo log */
-	return lane_need_recovery_redo(&section->redo[0], ALLOC_REDO_LOG_SIZE);
+	return lane_need_recovery_redo(&section->redo, ALLOC_REDO_LOG_SIZE);
 }
 
 #define PVECTOR_EMPTY(_pvec) ((_pvec).embedded[0] == 0)
@@ -237,7 +237,7 @@ info_obj_redo(int v, struct redo_log *redo, size_t nentries)
 			"Finish flag: %d\n",
 			i,
 			redo_log_offset(&redo[i]),
-			redo[i].value,
+			redo->entries[i].value,
 			redo_log_is_last(&redo[i]));
 	}
 }
@@ -250,7 +250,7 @@ info_obj_lane_alloc(int v, struct lane_section_layout *layout)
 {
 	struct lane_alloc_layout *section =
 		(struct lane_alloc_layout *)layout;
-	info_obj_redo(v, &section->redo[0], ALLOC_REDO_LOG_SIZE);
+	info_obj_redo(v, &section->redo, ALLOC_REDO_LOG_SIZE);
 }
 
 /*
@@ -263,7 +263,7 @@ info_obj_lane_list(struct pmem_info *pip, int v,
 	struct lane_list_layout *section = (struct lane_list_layout *)layout;
 
 	outv_field(v, "Object offset", "0x%016lx", section->obj_offset);
-	info_obj_redo(v, &section->redo[0], REDO_NUM_ENTRIES);
+	info_obj_redo(v, &section->redo, REDO_NUM_ENTRIES);
 }
 
 static void

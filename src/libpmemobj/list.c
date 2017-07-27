@@ -510,7 +510,7 @@ list_insert_new(PMEMobjpool *pop,
 
 	struct lane_list_layout *section =
 		(struct lane_list_layout *)lane_section->layout;
-	struct redo_log *redo = section->redo;
+	struct redo_log *redo = &section->redo;
 	size_t redo_index = 0;
 	uint64_t sec_off_off = OBJ_PTR_TO_OFF(pop, &section->obj_offset);
 
@@ -666,7 +666,7 @@ list_insert(PMEMobjpool *pop,
 
 	struct lane_list_layout *section =
 		(struct lane_list_layout *)lane_section->layout;
-	struct redo_log *redo = section->redo;
+	struct redo_log *redo = &section->redo;
 	size_t redo_index = 0;
 
 	dest = list_get_dest(pop, head, dest, pe_offset, before);
@@ -746,7 +746,7 @@ list_remove_free(PMEMobjpool *pop, size_t pe_offset,
 	struct lane_list_layout *section =
 		(struct lane_list_layout *)lane_section->layout;
 	uint64_t sec_off_off = OBJ_PTR_TO_OFF(pop, &section->obj_offset);
-	struct redo_log *redo = section->redo;
+	struct redo_log *redo = &section->redo;
 	size_t redo_index = 0;
 
 	uint64_t obj_doffset = oidp->off;
@@ -851,7 +851,7 @@ list_remove(PMEMobjpool *pop,
 
 	struct lane_list_layout *section =
 		(struct lane_list_layout *)lane_section->layout;
-	struct redo_log *redo = section->redo;
+	struct redo_log *redo = &section->redo;
 	size_t redo_index = 0;
 
 	struct list_entry *entry_ptr =
@@ -935,7 +935,7 @@ list_move(PMEMobjpool *pop,
 
 	struct lane_list_layout *section =
 		(struct lane_list_layout *)lane_section->layout;
-	struct redo_log *redo = section->redo;
+	struct redo_log *redo = &section->redo;
 	size_t redo_index = 0;
 
 	dest = list_get_dest(pop, head_new, dest,
@@ -1044,7 +1044,7 @@ lane_list_recovery(PMEMobjpool *pop, void *data, unsigned length)
 	struct lane_list_layout *section = data;
 	ASSERT(sizeof(*section) <= length);
 
-	redo_log_recover(pop->redo, section->redo, REDO_NUM_ENTRIES);
+	redo_log_recover(pop->redo, &section->redo, REDO_NUM_ENTRIES);
 
 	if (section->obj_offset) {
 		/* alloc or free recovery */
@@ -1066,7 +1066,7 @@ lane_list_check(PMEMobjpool *pop, void *data, unsigned length)
 
 	int ret = 0;
 	if ((ret = redo_log_check(pop->redo,
-			section->redo, REDO_NUM_ENTRIES)) != 0) {
+			&section->redo, REDO_NUM_ENTRIES)) != 0) {
 		ERR("list lane: redo log check failed");
 		ASSERT(ret == 0 || ret == -1);
 		return ret;
