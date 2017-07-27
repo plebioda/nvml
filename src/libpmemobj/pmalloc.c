@@ -76,7 +76,7 @@ pmalloc_redo_hold(PMEMobjpool *pop)
 #endif
 
 	struct lane_alloc_layout *sec = (void *)lane->layout;
-	return sec->redo;
+	return &sec->redo;
 }
 
 /*
@@ -241,9 +241,10 @@ static int
 pmalloc_recovery(PMEMobjpool *pop, void *data, unsigned length)
 {
 	struct lane_alloc_layout *sec = data;
+	LOG(2, "size %zu len %u", sizeof(*sec), length);
 	ASSERT(sizeof(*sec) <= length);
 
-	redo_log_recover(pop->redo, sec->redo, ALLOC_REDO_LOG_SIZE);
+	redo_log_recover(pop->redo, &sec->redo, ALLOC_REDO_LOG_SIZE);
 
 	return 0;
 }
@@ -258,7 +259,7 @@ pmalloc_check(PMEMobjpool *pop, void *data, unsigned length)
 
 	struct lane_alloc_layout *sec = data;
 
-	int ret = redo_log_check(pop->redo, sec->redo, ALLOC_REDO_LOG_SIZE);
+	int ret = redo_log_check(pop->redo, &sec->redo, ALLOC_REDO_LOG_SIZE);
 	if (ret != 0)
 		ERR("allocator lane: redo log check failed");
 
