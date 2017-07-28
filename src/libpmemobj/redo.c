@@ -99,15 +99,8 @@ redo_log_config_delete(struct redo_ctx *ctx)
 size_t
 redo_log_nflags(const struct redo_log *redo, size_t nentries)
 {
-	size_t ret = 0;
-	for (size_t i = 0; i < REDO_NFLAGS; i++) {
-		if (util_isset(redo->flag, i))
-			ret++;
-	}
-
-	LOG(15, "redo %p nentries %zu nflags %zu", redo, nentries, ret);
-
-	return ret;
+	uint32_t index = (uint32_t)( redo->select1 > redo->select2 ? redo->index1 : redo->index2);
+	return index != 0;
 }
 
 /*
@@ -144,11 +137,21 @@ redo_log_store_last(const struct redo_ctx *ctx, struct redo_log *redo,
 	redo->entries[index].offset = offset;
 
 	/* persist all redo log entries */
-	pmemops_persist(p_ops, redo, (index + 1) * sizeof(struct redo_log));
+	pmemops_persist(p_ops, redo->entries, (index + 1) * sizeof(struct redo_log_entry));
 
 	/* store and persist finish flag */
-	util_setbit(redo->flag, (uint32_t)index);
-	pmemops_persist(p_ops, &redo->flag[index/8], sizeof(redo->flag[index/8]));
+	uint32_t *ptr;
+	if (redo->select1 > redo->select2) {
+		ptr = &redo->select2;
+		redo->select2 = redo->select1 + 1;
+		redo->index2 = (uint32_t)index;
+	} else {
+		ptr = &redo->select1;
+		redo->select1 = redo->select2 + 1;
+		redo->index1 = (uint32_t)index;
+	}
+
+	pmemops_persist(p_ops, ptr, 8);
 }
 
 /*
@@ -164,11 +167,21 @@ redo_log_set_last(const struct redo_ctx *ctx, struct redo_log *redo,
 	const struct pmem_ops *p_ops = &ctx->p_ops;
 
 	/* persist all redo log entries */
-	pmemops_persist(p_ops, redo, (index + 1) * sizeof(struct redo_log));
+	pmemops_persist(p_ops, redo->entries, (index + 1) * sizeof(struct redo_log_entry));
 
 	/* store and persist finish flag */
-	util_setbit(redo->flag, (uint32_t)index);
-	pmemops_persist(p_ops, &redo->flag[index/8], sizeof(redo->flag[index/8]));
+	uint32_t *ptr;
+	if (redo->select1 > redo->select2) {
+		ptr = &redo->select2;
+		redo->select2 = redo->select1 + 1;
+		redo->index2 = (uint32_t)index;
+	} else {
+		ptr = &redo->select1;
+		redo->select1 = redo->select2 + 1;
+		redo->index1 = (uint32_t)index;
+	}
+
+	pmemops_persist(p_ops, ptr, 8);
 }
 
 /*
@@ -187,15 +200,14 @@ redo_log_process(const struct redo_ctx *ctx, struct redo_log *redo,
 
 	uint64_t *val;
 	size_t i = 0;
-	while (!util_isset(redo->flag, i)) {
+	uint32_t *indexp = redo->select1 > redo->select2 ? &redo->index1 : &redo->index2;
+	for (i = 0; i < *indexp; i++) {
 		val = (uint64_t *)((uintptr_t)ctx->base + redo->entries[i].offset);
 		VALGRIND_ADD_TO_TX(val, sizeof(*val));
 		*val = redo->entries[i].value;
 		VALGRIND_REMOVE_FROM_TX(val, sizeof(*val));
 
 		pmemops_flush(p_ops, val, sizeof(uint64_t));
-
-		i++;
 	}
 
 	uint64_t offset = redo->entries[i].offset;
@@ -207,8 +219,15 @@ redo_log_process(const struct redo_ctx *ctx, struct redo_log *redo,
 	pmemops_persist(p_ops, val, sizeof(uint64_t));
 
 	/* store and persist finish flag */
-	util_clrbit(redo->flag, (uint32_t)i);
-	pmemops_persist(p_ops, &redo->flag[i/8], sizeof(redo->flag[i/8]));
+	if (redo->select1 > redo->select2) {
+		redo->select2 = redo->select1 + 1;
+		redo->index2 = 0;
+		pmemops_persist(p_ops, &redo->select2, 8);
+	} else {
+		redo->select1 = redo->select2 + 1;
+		redo->index1 = 0;
+		pmemops_persist(p_ops, &redo->select1, 8);
+	}
 }
 
 /*
@@ -244,27 +263,20 @@ redo_log_check(const struct redo_ctx *ctx, struct redo_log *redo,
 
 	if (nflags > 1) {
 		LOG(15, "redo %p too many finish flags", redo);
-		return -1;
+		return 2;
 	}
 
 	if (nflags == 1) {
 		void *cctx = ctx->check_offset_ctx;
 
 		size_t i = 0;
-		while (!util_isset(redo->flag, i)) {
+		uint32_t *indexp = redo->select1 > redo->select2 ? &redo->index1 : &redo->index2;
+		for (i = 0; i < *indexp; i++) {
 			if (!ctx->check_offset(cctx, redo->entries[i].offset)) {
 				LOG(15, "redo %p invalid offset %" PRIu64,
 						redo, redo->entries[i].offset);
-				return -1;
+				return 3;
 			}
-			i++;
-		}
-
-		uint64_t offset = redo->entries[i].offset;
-		if (!ctx->check_offset(cctx, offset)) {
-			LOG(15, "redo %p invalid offset %" PRIu64,
-			    redo, offset);
-			return -1;
 		}
 	}
 

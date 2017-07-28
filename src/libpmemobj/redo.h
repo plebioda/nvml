@@ -56,7 +56,12 @@ struct redo_log_entry {
 };
 
 struct redo_log {
-	uint8_t flag[REDO_NFLAGS_N];
+	uint32_t select1;
+	uint32_t index1;
+	uint8_t padding1[256 - 8];
+	uint32_t select2;
+	uint32_t index2;
+	uint8_t padding2[256 - 8];
 	struct redo_log_entry entries[];
 };
 
