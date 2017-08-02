@@ -72,6 +72,7 @@ struct pvector {
 	 * directly into the structure.
 	 */
 	uint64_t embedded[PVECTOR_INIT_SIZE];
+	uint8_t padding[256 - 224];
 };
 
 typedef void (*entry_op_callback)(PMEMobjpool *pop, uint64_t *entry);

@@ -280,14 +280,27 @@ constructor_tx_add_range(void *ctx, void *ptr, size_t usable_size, void *arg)
 	return 0;
 }
 
+static uint64_t
+tx_get_state(PMEMobjpool *pop, struct lane_tx_layout *layout)
+{
+	return layout->select1 > layout->select2 ? layout->state1 : layout->state2;
+}
+
 /*
  * tx_set_state -- (internal) set transaction state
  */
 static inline void
 tx_set_state(PMEMobjpool *pop, struct lane_tx_layout *layout, uint64_t state)
 {
-	layout->state = state;
-	pmemops_persist(&pop->p_ops, &layout->state, sizeof(layout->state));
+	if (layout->select1 > layout->select2) {
+		layout->state2 = state;
+		layout->select2 = layout->select1 + 1;
+		pmemops_persist(&pop->p_ops, &layout->state2, 16);
+	} else {
+		layout->state1 = state;
+		layout->select1 = layout->select2 + 1;
+		pmemops_persist(&pop->p_ops, &layout->state1, 16);
+	}
 }
 
 /*
@@ -2171,11 +2184,13 @@ lane_transaction_destroy_rt(PMEMobjpool *pop, void *rt)
 static int
 lane_transaction_recovery(PMEMobjpool *pop, void *data, unsigned length)
 {
+	return 0;
+
 	struct lane_tx_layout *layout = data;
 	int ret = 0;
 	ASSERT(sizeof(*layout) <= length);
 
-	if (layout->state == TX_STATE_COMMITTED) {
+	if (tx_get_state(pop, layout) == TX_STATE_COMMITTED) {
 		/*
 		 * The transaction has been committed so we have to
 		 * process the undo log, do the post commit phase
@@ -2201,8 +2216,8 @@ lane_transaction_check(PMEMobjpool *pop, void *data, unsigned length)
 
 	struct lane_tx_layout *tx_sec = data;
 
-	if (tx_sec->state != TX_STATE_NONE &&
-		tx_sec->state != TX_STATE_COMMITTED) {
+	if (tx_get_state(pop, tx_sec) != TX_STATE_NONE &&
+		tx_get_state(pop, tx_sec) != TX_STATE_COMMITTED) {
 		ERR("tx lane: invalid transaction state");
 		return -1;
 	}
