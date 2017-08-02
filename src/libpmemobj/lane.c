@@ -345,7 +345,9 @@ lane_check(PMEMobjpool *pop)
 static inline void
 get_lane(uint64_t *locks, struct lane_info *info, uint64_t nlocks)
 {
-	info->lane_idx = info->primary;
+	info->lane_idx = info->primary++;
+	if (info->primary == 1023)
+		info->primary = 0;
 	while (1) {
 		do {
 			info->lane_idx %= nlocks;
@@ -464,6 +466,7 @@ lane_hold(PMEMobjpool *pop, struct lane_section **section,
 		*section = s;
 	}
 
+	LOG(2, "lane_hold = %lu", lane->lane_idx);
 	return (unsigned)lane->lane_idx;
 }
 
@@ -506,6 +509,7 @@ lane_release(PMEMobjpool *pop)
 
 	ASSERTne(lane, NULL);
 	ASSERTne(lane->lane_idx, UINT64_MAX);
+	LOG(2, "lane_rele = %lu", lane->lane_idx);
 
 	if (unlikely(lane->nest_count == 0)) {
 		FATAL("lane_release");
