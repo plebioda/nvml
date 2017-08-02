@@ -42,7 +42,7 @@
 #include "libpmemobj.h"
 #include "redo.h"
 
-#define LANE_SECTION_LEN 1024
+#define LANE_SECTION_LEN 8192
 
 #define REDO_NUM_ENTRIES \
 	((LANE_SECTION_LEN - 2 * sizeof(uint64_t) - sizeof(struct redo_log)) / sizeof(struct redo_log_entry))

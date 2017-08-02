@@ -74,10 +74,10 @@ struct lane_tx_layout {
 	uint64_t state1;
 	uint64_t select1;
 	uint8_t padding1[256 - 16];
-	struct pvector undo_log[MAX_UNDO_TYPES];
 	uint64_t state2;
 	uint64_t select2;
 	uint8_t padding2[256 - 16];
+	struct pvector undo_log[MAX_UNDO_TYPES];
 };
 
 struct tx_parameters;
