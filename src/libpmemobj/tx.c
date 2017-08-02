@@ -292,13 +292,14 @@ tx_get_state(PMEMobjpool *pop, struct lane_tx_layout *layout)
 static inline void
 tx_set_state(PMEMobjpool *pop, struct lane_tx_layout *layout, uint64_t state)
 {
-	if (layout->select1 > layout->select2) {
+	static uint64_t select = 1;
+	if (layout->select2 == select) {
 		layout->state2 = state;
-		layout->select2 = layout->select1 + 1;
+		layout->select2 = select++;
 		pmemops_persist(&pop->p_ops, &layout->state2, 16);
 	} else {
 		layout->state1 = state;
-		layout->select1 = layout->select2 + 1;
+		layout->select1 = select++;
 		pmemops_persist(&pop->p_ops, &layout->state1, 16);
 	}
 }
