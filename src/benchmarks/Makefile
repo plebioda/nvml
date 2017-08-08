@@ -36,7 +36,7 @@
 TOP := $(dir $(lastword $(MAKEFILE_LIST)))../..
 
 include $(TOP)/src/common.inc
-
+DEBUG=1 
 vpath %.c $(TOP)/src/examples/libpmemobj/tree_map
 vpath %.c $(TOP)/src/examples/libpmemobj/map
 vpath %.c $(TOP)/src/examples/libpmemobj/hashmap
@@ -79,7 +79,8 @@ SRC=pmembench.cpp\
     obj_lanes.cpp\
     map_bench.cpp\
     pmemobj_tx.cpp\
-    pmemobj_atomic_lists.cpp
+    pmemobj_atomic_lists.cpp\
+    pmem_io.cpp
 
 # Configuration file without the .cfg extension
 CONFIGS=pmembench_log\
