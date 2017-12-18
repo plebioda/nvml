@@ -113,22 +113,6 @@ uuid2str(const uuid_t uuid)
 }
 
 /*
- * rpmemd_get_nthreads -- returns number of threads to use for fabric
- * processing
- */
-static size_t
-rpmemd_get_nthreads(void)
-{
-	long ncpus = sysconf(_SC_NPROCESSORS_ONLN);
-	if (ncpus < 0) {
-		RPMEMD_LOG(ERR, "getting number of CPUs");
-		return 0;
-	}
-
-	return (size_t)ncpus;
-}
-
-/*
  * rpmemd_get_pm -- returns persist method based on configuration
  */
 static enum rpmem_persist_method
@@ -748,12 +732,7 @@ main(int argc, char *argv[])
 
 	RPMEMD_LOG(INFO, "%s version %s", DAEMON_NAME, SRCVERSION);
 	rpmemd->persist_method = rpmemd_get_pm(&rpmemd->config);
-	rpmemd->nthreads = rpmemd_get_nthreads();
-	if (!rpmemd->nthreads) {
-		RPMEMD_LOG(ERR, "invalid number of threads -- '%lu'",
-				rpmemd->nthreads);
-		goto err_nthreads;
-	}
+	rpmemd->nthreads = 0; /* use default value */
 
 	rpmemd->db = rpmemd_db_init(rpmemd->config.poolset_dir, 0666);
 	if (!rpmemd->db) {
@@ -813,7 +792,6 @@ err_status:
 out_rm:
 	rpmemd_db_fini(rpmemd->db);
 err_db_init:
-err_nthreads:
 err_log_init_config:
 	rpmemd_config_free(&rpmemd->config);
 err_config:
